@@ -1,97 +1,98 @@
 'use client';
 
 import Link from 'next/link';
+import { BookingType } from "@/lib/bookingContext";
+import { CalendarCheck, Building, Camera, ArrowRight } from 'lucide-react';
 
-export default function Hero() {
+interface HeroProps {
+  setBookingType: (type: BookingType) => void;
+}
+
+export default function Hero({ setBookingType }: HeroProps) {
     return (
-        <section className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-                    {/* Left Side - Title & Tagline */}
-                    <div className="flex flex-col justify-center space-y-6">
+        <section className="min-h-screen bg-white flex items-center relative overflow-hidden">
+            {/* Background decoration */}
+            <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-gray-100 rounded-full blur-3xl opacity-50 -z-10" />
+            <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-gray-50 rounded-full blur-3xl opacity-50 -z-10" />
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-12">
+                <div className="text-center mb-12">
+                    <h1 className="text-8xl md:text-9xl font-black text-gray-900 mb-8 tracking-tight">
+                        SCENEO
+                    </h1>
+                    <h2 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight mb-6 tracking-tight">
+                        Your Creative Space Awaits You
+                    </h2>
+                    <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-12">
+                        Professional photo studios and expert photographers, all in one place.
+                        Book instantly and bring your vision to life.
+                    </p>
+
+                    {/* Stats */}
+                    <div className="flex justify-center gap-12 mb-16 flex-wrap">
                         <div>
-                            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 leading-tight mb-4">
-                                Book Your Perfect Photo Studio
-                            </h1>
-                            <p className="text-xl text-gray-600 mb-6">
-                                Professional photo studio rental and photographer booking services. Get the perfect space and talent for your photoshoots, whether you are a professional or just starting out.
-                            </p>
+                            <p className="text-3xl font-bold text-gray-900">Quality First</p>
+                            <p className="text-gray-600">Premium Spaces</p>
                         </div>
-
-                        <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                            <Link
-                                href="pages/booking"
-                                className="bg-black text-white px-8 py-4 rounded-lg font-semibold hover:bg-gray-800 transition-colors text-center"
-                            >
-                                Book Studio
-                            </Link>
-                            <Link
-                                href="/rent"
-                                className="border-2 border-black text-black px-8 py-4 rounded-lg font-semibold hover:bg-gray-100 transition-colors text-center"
-                            >
-                                Book Photographer
-                            </Link>
+                        <div>
+                            <p className="text-3xl font-bold text-gray-900">Verified</p>
+                            <p className="text-gray-600">Professionals</p>
                         </div>
-
-                        <div className="pt-8 flex gap-8">
-                            <div>
-                                <p className="text-3xl font-bold text-gray-900">Premium</p>
-                                <p className="text-gray-600">Studio Spaces</p>
-                            </div>
-                            <div>
-                                <p className="text-3xl font-bold text-gray-900">Expert</p>
-                                <p className="text-gray-600">Photographers</p>
-                            </div>
-                            <div>
-                                <p className="text-3xl font-bold text-gray-900">24/7</p>
-                                <p className="text-gray-600">Support</p>
-                            </div>
+                        <div>
+                            <p className="text-3xl font-bold text-gray-900">Easy</p>
+                            <p className="text-gray-600">Booking</p>
                         </div>
                     </div>
+                </div>
 
-                    {/* Right Side - Visual */}
-                    <div className="flex justify-center">
-                        <div className="w-full max-w-md">
-                            <div className="grid grid-cols-2 gap-4">
-                                {/* Card 1 */}
-                                <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-                                    <div className="text-4xl mb-3">📸</div>
-                                    <h3 className="font-bold text-gray-900 mb-2">Professional Studio</h3>
-                                    <p className="text-sm text-gray-600">State-of-the-art equipment and lighting</p>
+                {/* Booking Options */}
+                <div className="max-w-4xl mx-auto">
+                    <h2 className="text-2xl md:text-3xl font-bold text-gray-900 text-center mb-8">
+                        Choose Your Booking Type
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Slot Booking */}
+                        <Link
+                            href="/pages/booking"
+                            onClick={() => setBookingType('slot')}
+                            className="group relative bg-white rounded-2xl border-2 border-gray-200 hover:border-black p-8 transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                        >
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-16 h-16 bg-gray-900 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                    <CalendarCheck className="w-8 h-8 text-white" />
                                 </div>
-
-                                {/* Card 2 */}
-                                <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-                                    <div className="text-4xl mb-3">👥</div>
-                                    <h3 className="font-bold text-gray-900 mb-2">Expert Team</h3>
-                                    <p className="text-sm text-gray-600">Experienced photographers ready to assist</p>
-                                </div>
-
-                                {/* Card 3 */}
-                                <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-                                    <div className="text-4xl mb-3">⏰</div>
-                                    <h3 className="font-bold text-gray-900 mb-2">Flexible Hours</h3>
-                                    <p className="text-sm text-gray-600">Book anytime that works for you</p>
-                                </div>
-
-                                {/* Card 4 */}
-                                <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-                                    <div className="text-4xl mb-3">✨</div>
-                                    <h3 className="font-bold text-gray-900 mb-2">High Quality</h3>
-                                    <p className="text-sm text-gray-600">Professional results guaranteed</p>
+                                <h3 className="text-xl font-bold text-gray-900 mb-2">Book a Slot</h3>
+                                <p className="text-gray-600 text-sm mb-4">
+                                    Perfect for individual shoots. Choose your time slot and studio.
+                                </p>
+                                <div className="flex items-center gap-2 text-black font-semibold mt-auto">
+                                    Start Booking <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
+                        </Link>
 
-                            {/* Feature Highlight */}
-                            <div className="mt-6 bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl p-6 text-white shadow-lg">
-                                <p className="text-sm font-semibold mb-2">Why Choose Us</p>
-                                <p className="text-lg font-bold">Everything you need for stunning photos in one place</p>
-                                <div className="mt-4 flex gap-2 text-sm">
-                                    <span className="bg-white bg-opacity-20 px-3 py-1 rounded-full">Studio Space</span>
-                                    <span className="bg-white bg-opacity-20 px-3 py-1 rounded-full">Photographers</span>
+                        {/* Whole Studio */}
+                        <Link
+                            href="/pages/booking"
+                            onClick={() => setBookingType('whole_studio')}
+                            className="group relative bg-black rounded-2xl border-2 border-black p-8 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1"
+                        >
+                            <div className="absolute top-3 right-3">
+                                <span className="bg-white text-black text-xs font-bold px-2 py-1 rounded-full">POPULAR</span>
+                            </div>
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                    <Building className="w-8 h-8 text-gray-900" />
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">Whole Studio</h3>
+                                <p className="text-gray-300 text-sm mb-4">
+                                    Whole Studio access. Exclusive use for productions and events.
+                                </p>
+                                <div className="flex items-center gap-2 text-white font-semibold mt-auto">
+                                    Start Booking <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </div>
+                        </Link>
                     </div>
                 </div>
             </div>

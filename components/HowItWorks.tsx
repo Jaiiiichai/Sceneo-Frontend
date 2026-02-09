@@ -1,34 +1,37 @@
 'use client';
 
-import { CheckCircle } from 'lucide-react';
+import { Search, Calendar, CheckCircle, Shield, Clock, Star } from 'lucide-react';
 
 export default function HowItWorks() {
     return (
-        <section className="py-16 bg-white">
+        <section className="py-20 bg-gray-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Header */}
                 <div className="text-center mb-16">
                     <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">How It Works</h2>
-                    <p className="text-xl text-gray-600">Book your perfect photo studio in three simple steps</p>
+                    <p className="text-xl text-gray-600 max-w-2xl mx-auto">Book your perfect photo studio in three simple steps</p>
                 </div>
 
                 {/* Steps */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16 relative">
+                    {/* Connection Line (hidden on mobile) */}
+                    <div className="hidden md:block absolute top-8 left-1/6 right-1/6 h-0.5 bg-gray-300" style={{ top: '32px' }} />
+                    
                     {/* Step 1 */}
-                    <div className="flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-black text-white rounded-full flex items-center justify-center mb-6 text-2xl font-bold">
-                            1
+                    <div className="relative flex flex-col items-center text-center">
+                        <div className="w-16 h-16 bg-black text-white rounded-2xl flex items-center justify-center mb-6 text-2xl font-bold shadow-lg z-10">
+                            <Search className="w-8 h-8" />
                         </div>
                         <h3 className="text-2xl font-bold text-gray-900 mb-3">Browse & Choose</h3>
                         <p className="text-gray-600">
-                            Explore our collection of professional photo studios. Filter by location, amenities, and hourly rates to find the perfect fit for your needs.
+                            Explore our collection of professional photo studios. Filter by location, amenities, and rates to find your perfect match.
                         </p>
                     </div>
 
                     {/* Step 2 */}
-                    <div className="flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-black text-white rounded-full flex items-center justify-center mb-6 text-2xl font-bold">
-                            2
+                    <div className="relative flex flex-col items-center text-center">
+                        <div className="w-16 h-16 bg-gray-800 text-white rounded-2xl flex items-center justify-center mb-6 text-2xl font-bold shadow-lg z-10">
+                            <Calendar className="w-8 h-8" />
                         </div>
                         <h3 className="text-2xl font-bold text-gray-900 mb-3">Select & Book</h3>
                         <p className="text-gray-600">
@@ -37,47 +40,55 @@ export default function HowItWorks() {
                     </div>
 
                     {/* Step 3 */}
-                    <div className="flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-black text-white rounded-full flex items-center justify-center mb-6 text-2xl font-bold">
-                            3
+                    <div className="relative flex flex-col items-center text-center">
+                        <div className="w-16 h-16 bg-gray-700 text-white rounded-2xl flex items-center justify-center mb-6 text-2xl font-bold shadow-lg z-10">
+                            <CheckCircle className="w-8 h-8" />
                         </div>
                         <h3 className="text-2xl font-bold text-gray-900 mb-3">Create & Enjoy</h3>
                         <p className="text-gray-600">
-                            Arrive at your booked time and create amazing photos! Our team is ready to assist with equipment and technical support.
+                            Arrive at your booked time and create amazing photos! Our team is ready to assist with equipment and support.
                         </p>
                     </div>
                 </div>
 
                 {/* Benefits */}
-                <div className="bg-gray-50 rounded-lg p-8">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-6">Why Book With Us</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="flex gap-3">
-                            <CheckCircle className="w-6 h-6 text-black flex-shrink-0" />
+                <div className="bg-white rounded-3xl p-10 shadow-lg border border-gray-200">
+                    <h3 className="text-3xl font-bold text-gray-900 mb-8 text-center">Why Book With Sceneo</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="flex gap-4">
+                            <div className="flex-shrink-0 w-12 h-12 bg-black rounded-xl flex items-center justify-center">
+                                <Shield className="w-6 h-6 text-white" />
+                            </div>
                             <div>
-                                <p className="font-semibold text-gray-900">Verified Studios</p>
-                                <p className="text-gray-600 text-sm">All studios are professionally reviewed and verified</p>
+                                <p className="font-bold text-lg text-gray-900 mb-1">Verified Studios</p>
+                                <p className="text-gray-600">All studios are professionally reviewed and verified for quality</p>
                             </div>
                         </div>
-                        <div className="flex gap-3">
-                            <CheckCircle className="w-6 h-6 text-black flex-shrink-0" />
+                        <div className="flex gap-4">
+                            <div className="flex-shrink-0 w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+                                <Star className="w-6 h-6 text-white" />
+                            </div>
                             <div>
-                                <p className="font-semibold text-gray-900">Expert Photographers</p>
-                                <p className="text-gray-600 text-sm">Book skilled photographers for your shoot</p>
+                                <p className="font-bold text-lg text-gray-900 mb-1">Expert Photographers</p>
+                                <p className="text-gray-600">Book skilled photographers for your shoot with verified portfolios</p>
                             </div>
                         </div>
-                        <div className="flex gap-3">
-                            <CheckCircle className="w-6 h-6 text-black flex-shrink-0" />
+                        <div className="flex gap-4">
+                            <div className="flex-shrink-0 w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
+                                <Shield className="w-6 h-6 text-white" />
+                            </div>
                             <div>
-                                <p className="font-semibold text-gray-900">Secure Booking</p>
-                                <p className="text-gray-600 text-sm">Protected payments and cancellation guarantee</p>
+                                <p className="font-bold text-lg text-gray-900 mb-1">Secure Booking</p>
+                                <p className="text-gray-600">Protected payments and flexible cancellation guarantee</p>
                             </div>
                         </div>
-                        <div className="flex gap-3">
-                            <CheckCircle className="w-6 h-6 text-black flex-shrink-0" />
+                        <div className="flex gap-4">
+                            <div className="flex-shrink-0 w-12 h-12 bg-gray-600 rounded-xl flex items-center justify-center">
+                                <Clock className="w-6 h-6 text-white" />
+                            </div>
                             <div>
-                                <p className="font-semibold text-gray-900">24/7 Support</p>
-                                <p className="text-gray-600 text-sm">Our team is always here to help you</p>
+                                <p className="font-bold text-lg text-gray-900 mb-1">24/7 Support</p>
+                                <p className="text-gray-600">Our dedicated team is always here to help you succeed</p>
                             </div>
                         </div>
                     </div>
