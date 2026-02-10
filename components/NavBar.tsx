@@ -32,8 +32,8 @@ export default function NavBar() {
     }, [showUserMenu]);
 
     return (
-        <header className="bg-white  border-gray-200">
-            <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <header className="bg-white border-gray-200">
+            <nav className="max-w-full 2xl:max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-12 xl:px-16 2xl:px-24">
                 <div className="h-16 flex items-center justify-between">
                  
 
