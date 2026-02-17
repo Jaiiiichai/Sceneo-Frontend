@@ -3,23 +3,27 @@
 import { useState } from 'react';
 import DateSelector from '@/components/DateSelector';
 import TimeSlotSelection from '@/components/TimeSlotSelection';
+import { TimeSlot } from '@/lib/timeSlots';
 
 export default function PhotographerBookingPage() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | undefined>(undefined);
+  const [selectedTimeSlotData, setSelectedTimeSlotData] = useState<TimeSlot | undefined>(undefined);
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
     setSelectedTimeSlot(undefined); // Reset time slot when date changes
+    setSelectedTimeSlotData(undefined);
   };
 
-  const handleTimeSlotSelect = (time: string) => {
-    setSelectedTimeSlot(time);
+  const handleTimeSlotSelect = (slotId: string, timeSlot: TimeSlot) => {
+    setSelectedTimeSlot(slotId);
+    setSelectedTimeSlotData(timeSlot);
   };
 
   const handleBookPhotographer = () => {
-    if (selectedDate && selectedTimeSlot) {
-      alert(`Photographer booked for ${selectedDate.toDateString()} at ${selectedTimeSlot}`);
+    if (selectedDate && selectedTimeSlot && selectedTimeSlotData) {
+      alert(`Photographer booked for ${selectedDate.toDateString()} at ${selectedTimeSlotData.displayTime}`);
       // In a real application, you would integrate with a booking API here
       // and potentially navigate to a confirmation page or add to cart.
     } else {

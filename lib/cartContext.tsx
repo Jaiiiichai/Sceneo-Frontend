@@ -8,6 +8,12 @@ export interface CartItem {
   name: string;
   duration: string;
   price: string;
+  // Additional booking details
+  bookingType?: 'professional_slots' | 'whole_studio';
+  bookingDate?: string; // YYYY-MM-DD format
+  timeSlotId?: string; // UUID for time slot
+  serviceProviderId?: number;
+  serviceType?: string;
 }
 
 interface CartContextType {

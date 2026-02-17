@@ -3,9 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCart } from '@/lib/cartContext';
+import { useAuth } from '@/lib/authContext';
+import { api } from '@/network';
 
 export default function BookingCheckoutPage() {
   const { items, clearCart, setIsOpen, addItem } = useCart();
+  const { user, fetchUser, isAuthenticated } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -16,18 +19,133 @@ export default function BookingCheckoutPage() {
   const [allowCompanions, setAllowCompanions] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // Helper function to format date in local timezone as YYYY-MM-DD
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const total = items.reduce((sum, it) => sum + parseFloat(it.price.replace(/[^0-9.]/g, '')), 0);
+
+  // Fetch user data on mount and auto-fill form
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (isAuthenticated()) {
+        try {
+          await fetchUser();
+        } catch (error) {
+          console.error('Error fetching user:', error);
+        }
+      }
+    };
+    
+    loadUserData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-fill form when user data is available
+  useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setEmail(user.email || '');
+      setPhone(user.phone || '');
+    }
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || items.length === 0) return alert('Please provide name, email and at least one booking item');
-    if (!acceptPolicy) return alert('Please agree to the cancellation policy');
+    if (!name || !email || items.length === 0) {
+      alert('Please provide name, email and at least one booking item');
+      return;
+    }
+    if (!acceptPolicy) {
+      alert('Please agree to the cancellation policy');
+      return;
+    }
+    
+    if (!isAuthenticated()) {
+      alert('Please log in to complete your booking');
+      router.push('/pages/Auth/login');
+      return;
+    }
+
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 800));
-    alert(`Booking confirmed for ${name}. Total: ₱${total.toFixed(2)}`);
-    clearCart();
-    setIsOpen(false);
-    router.push('/');
+
+    try {
+      // Extract UUID from potentially concatenated ID (cart adds timestamp)
+      const extractUUID = (id: string): string => {
+        // UUID format: 8-4-4-4-12 characters (36 total)
+        const uuidMatch = id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+        return uuidMatch ? uuidMatch[0] : id;
+      };
+
+      // Create bookings for each cart item
+      const bookingPromises = items.map(async (item) => {
+        // Parse time to HH:MM:SS format
+        const parseTime = (timeStr: string): string => {
+          // If already in HH:MM:SS format, return as is
+          if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) return timeStr;
+          
+          // Parse from "7:00 AM" format
+          const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+          if (match) {
+            let hours = parseInt(match[1]);
+            const minutes = match[2];
+            const meridiem = match[3].toUpperCase();
+            
+            if (meridiem === 'PM' && hours < 12) hours += 12;
+            if (meridiem === 'AM' && hours === 12) hours = 0;
+            
+            return `${String(hours).padStart(2, '0')}:${minutes}:00`;
+          }
+          
+          return '09:00:00'; // Default fallback
+        };
+
+        const bookingData = {
+          user_id: user?.id || 0,
+          customer_name: name,
+          customer_email: email,
+          customer_phone: phone || '',
+          booking_type: item.bookingType || 'professional_slots',
+          booking_date: item.bookingDate || formatLocalDate(new Date()),
+          booking_time: parseTime(item.time),
+          booking_status: 'confirmed',
+          booking_price: parseFloat(item.price.replace(/[^0-9.]/g, '')),
+          service_type: item.serviceType || item.name,
+          service_provider_id: item.serviceProviderId || 1,
+          time_slot_id: item.timeSlotId || extractUUID(item.id)
+        };
+
+        console.log('Creating booking:', bookingData);
+        console.log('Booking date from cart item:', item.bookingDate);
+        console.log('Final booking date:', bookingData.booking_date);
+        return api.post('/bookings', bookingData, { requiresAuth: true });
+      });
+
+      const results = await Promise.all(bookingPromises);
+      console.log('Booking results:', results);
+      
+      // Check if all bookings were successful
+      const allSuccessful = results.every(result => result.success);
+      
+      if (allSuccessful) {
+        alert(`Booking confirmed for ${name}. Total: ₱${total.toFixed(2)}`);
+        clearCart();
+        setIsOpen(false);
+        router.push('/');
+      } else {
+        const failedCount = results.filter(r => !r.success).length;
+        alert(`${failedCount} booking(s) failed. Please try again or contact support.`);
+      }
+    } catch (error) {
+      console.error('Booking error:', error);
+      alert('An error occurred while creating your booking. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -40,7 +158,26 @@ export default function BookingCheckoutPage() {
         const name = searchParams.get('name') || 'Studio Booking';
         const price = searchParams.get('price') || '₱0';
         const duration = searchParams.get('duration') || '';
-        addItem({ id: studioId, time, name, price, duration });
+        const date = searchParams.get('date') || formatLocalDate(new Date());
+        const timeSlotId = searchParams.get('timeSlotId') || studioId;
+        const bookingTypeParam = searchParams.get('bookingType') || 'professional_slots';
+        const bookingType = (bookingTypeParam === 'whole_studio' || bookingTypeParam === 'professional_slots') 
+          ? bookingTypeParam 
+          : 'professional_slots';
+        
+        console.log('=== ADDING FROM URL PARAMS ===');
+        console.log('Date from URL:', date);
+        
+        addItem({ 
+          id: studioId, 
+          time, 
+          name, 
+          price, 
+          duration,
+          bookingDate: date,
+          timeSlotId,
+          bookingType
+        });
       }
     }
   // only run when search params string changes
@@ -89,14 +226,14 @@ export default function BookingCheckoutPage() {
                 </div>
 
                 <label className="block">
-                  <div className="text-sm font-semibold text-gray-700 mb-2">Phone Number *</div>
+                  <div className="text-sm font-semibold text-gray-700 mb-2">Phone Number</div>
                   <input 
                     value={phone} 
                     onChange={(e) => setPhone(e.target.value)} 
                     className="block w-full rounded-lg border-2 border-gray-200 focus:border-black focus:ring-0 px-4 py-3 transition-colors" 
-                    placeholder="+63 912 345 6789" 
-                    required
+                    placeholder="+63 912 345 6789"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Optional - Add manually if not provided</p>
                 </label>
 
                 {/* Policies */}
@@ -182,7 +319,9 @@ export default function BookingCheckoutPage() {
                         <div className="flex-grow">
                           <div className="font-semibold text-white">{it.name}</div>
                           <div className="text-sm text-gray-300 mt-1">{it.time} • {it.duration}</div>
-                          <div className="text-sm text-gray-400 mt-1">{new Date().toLocaleDateString()}</div>
+                          <div className="text-sm text-gray-400 mt-1">
+                            {it.bookingDate ? new Date(it.bookingDate + 'T00:00:00').toLocaleDateString() : 'No date selected'}
+                          </div>
                         </div>
                         <div className="font-bold text-white">{it.price}</div>
                       </div>

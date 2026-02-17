@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Users, DollarSign, TrendingUp, LogOut, Menu, X, Eye, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight } from 'lucide-react';
+import { api } from '@/network';
 
 interface Booking {
   id: string;
@@ -29,6 +30,13 @@ interface Booking {
       name: string;
     };
   };
+}
+
+interface ClosedDate {
+  id: number;
+  closed_date: string;
+  reason?: string;
+  created_at: string;
 }
 
 export default function AdminDashboard() {
@@ -121,8 +129,26 @@ export default function AdminDashboard() {
     },
   ]);
 
-  const [closedDates, setClosedDates] = useState<string[]>(['2026-02-25', '2026-02-26']);
+  const [closedDates, setClosedDates] = useState<ClosedDate[]>([]);
   const [currentViewDate, setCurrentViewDate] = useState(new Date(2026, 1, 1)); // February 2026
+  const [loading, setLoading] = useState(false);
+
+  // Fetch closed dates from API
+  const fetchClosedDates = async () => {
+    try {
+      const result = await api.get('/closed-dates');
+      if (result.success && result.data && Array.isArray(result.data)) {
+        // Filter out any invalid entries
+        const validDates = result.data.filter((item: any) => 
+          item && typeof item === 'object' && item.closed_date
+        );
+        setClosedDates(validDates);
+      }
+    } catch (error) {
+      console.error('Error fetching closed dates:', error);
+      setClosedDates([]); // Set to empty array on error
+    }
+  };
 
   useEffect(() => {
     const adminData = localStorage.getItem('sceneo_admin');
@@ -131,6 +157,9 @@ export default function AdminDashboard() {
     } else {
       setAdmin(JSON.parse(adminData));
     }
+    
+    // Fetch closed dates on mount
+    fetchClosedDates();
   }, [router]);
 
   const handleLogout = () => {
@@ -148,23 +177,61 @@ export default function AdminDashboard() {
   const toggleDateAvailability = (date: string) => {
     const dateObj = new Date(date);
     const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const action = closedDates.includes(date) ? 'open' : 'close';
+    const closedDateObj = closedDates.find(cd => cd && cd.closed_date === date);
+    const action = closedDateObj ? 'open' : 'close';
     
     setConfirmModal({ show: true, date, action, formattedDate });
   };
 
-  const confirmToggle = () => {
+  const confirmToggle = async () => {
     const { date, action, formattedDate } = confirmModal;
+    setLoading(true);
     
-    if (action === 'open') {
-      setClosedDates(closedDates.filter(d => d !== date));
-      showConfirmation(`${formattedDate} is now OPEN for bookings`, 'success');
-    } else {
-      setClosedDates([...closedDates, date]);
-      showConfirmation(`${formattedDate} is now CLOSED for bookings`, 'success');
+    try {
+      if (action === 'open') {
+        // DELETE to open the date
+        const closedDateObj = closedDates.find(cd => cd && cd.closed_date === date);
+        if (closedDateObj) {
+          const result = await api.delete(`/closed-dates/${closedDateObj.id}`, 
+            { requiresAuth: true }
+          );
+          
+          if (result.success) {
+            setClosedDates(closedDates.filter(cd => cd.id !== closedDateObj.id));
+            showConfirmation(`${formattedDate} is now OPEN for bookings`, 'success');
+          } else {
+            showConfirmation('Failed to open date. Please try again.', 'error');
+          }
+        } else {
+          showConfirmation('Date not found in closed dates list.', 'error');
+        }
+      } else {
+        // POST to close the date
+        const result = await api.post('/closed-dates', 
+          { closed_date: date },
+          { requiresAuth: true }
+        );
+        
+        if (result.success) {
+          // Add the new closed date to the list
+          if (result.data && result.data.closed_date) {
+            setClosedDates([...closedDates, result.data]);
+          } else {
+            // If data structure is unexpected, refetch to sync with backend
+            await fetchClosedDates();
+          }
+          showConfirmation(`${formattedDate} is now CLOSED for bookings`, 'success');
+        } else {
+          showConfirmation('Failed to close date. Please try again.', 'error');
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling date availability:', error);
+      showConfirmation('An error occurred. Please try again.', 'error');
+    } finally {
+      setLoading(false);
+      setConfirmModal({ show: false, date: '', action: 'open', formattedDate: '' });
     }
-    
-    setConfirmModal({ show: false, date: '', action: 'open', formattedDate: '' });
   };
 
   const cancelToggle = () => {
@@ -200,6 +267,14 @@ export default function AdminDashboard() {
 
   const goToCurrentMonth = () => {
     setCurrentViewDate(new Date());
+  };
+
+  // Helper function to format date to YYYY-MM-DD using local timezone
+  const formatDateToYYYYMMDD = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   // Get all days in the current viewing month
@@ -727,8 +802,8 @@ export default function AdminDashboard() {
                     return <div key={`empty-${index}`} className="h-16" />;
                   }
                   
-                  const dateStr = date.toISOString().split('T')[0];
-                  const isClosed = closedDates.includes(dateStr);
+                  const dateStr = formatDateToYYYYMMDD(date);
+                  const isClosed = closedDates.some(cd => cd && cd.closed_date === dateStr);
                   const isToday = new Date().toDateString() === date.toDateString();
                   const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
                   
@@ -770,11 +845,16 @@ export default function AdminDashboard() {
                 <h3 className="font-bold text-gray-900 mb-2">Currently Closed Dates:</h3>
                 {closedDates.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
-                    {closedDates.map(date => (
-                      <span key={date} className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold">
-                        {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>
-                    ))}
+                    {closedDates.filter(cd => cd && cd.closed_date).map(closedDate => {
+                      // Parse YYYY-MM-DD as local date (not UTC)
+                      const [year, month, day] = closedDate.closed_date.split('-').map(Number);
+                      const localDate = new Date(year, month - 1, day);
+                      return (
+                        <span key={closedDate.id} className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold">
+                          {localDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-gray-600 text-sm">All dates are currently open for booking</p>
@@ -796,19 +876,21 @@ export default function AdminDashboard() {
             <div className="flex gap-3">
               <button
                 onClick={cancelToggle}
-                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors"
+                disabled={loading}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmToggle}
-                className={`flex-1 px-4 py-3 rounded-lg font-bold transition-colors ${
+                disabled={loading}
+                className={`flex-1 px-4 py-3 rounded-lg font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                   confirmModal.action === 'open'
                     ? 'bg-green-500 text-white hover:bg-green-600'
                     : 'bg-red-500 text-white hover:bg-red-600'
                 }`}
               >
-                {confirmModal.action === 'open' ? 'Open Date' : 'Close Date'}
+                {loading ? 'Processing...' : (confirmModal.action === 'open' ? 'Open Date' : 'Close Date')}
               </button>
             </div>
           </div>

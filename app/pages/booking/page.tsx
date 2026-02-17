@@ -6,7 +6,7 @@ import DateSelector from '@/components/DateSelector';
 import { useBookingType } from '@/lib/bookingContext'; // Import useBookingType
 
 export default function BookingPage() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { bookingType } = useBookingType(); // Consume bookingType from context
 
   return (
