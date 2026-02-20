@@ -19,11 +19,13 @@ export interface CartItem {
   timeSlotId?: string; // UUID for time slot
   serviceProviderId?: number;
   serviceType?: string;
+  serviceProviderName?: string;
 }
 
 interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => Promise<void>;
+  attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string }) => Promise<boolean>;
   removeItem: (id: string) => Promise<void>;
   clearCart: () => Promise<void>;
   updateItemQuantity: (id: string, quantity: number) => Promise<void>;
@@ -126,6 +128,34 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string }) => {
+    let updated = false;
+
+    setItems(prevItems => {
+      const targetIndex = [...prevItems].reverse().findIndex(item => Boolean(item.timeSlotId));
+      if (targetIndex === -1) return prevItems;
+
+      const actualIndex = prevItems.length - 1 - targetIndex;
+      const nextItems = [...prevItems];
+      nextItems[actualIndex] = {
+        ...nextItems[actualIndex],
+        serviceProviderId: service.providerId,
+        serviceType: service.serviceType,
+        serviceProviderName: service.providerName,
+      };
+      updated = true;
+      return nextItems;
+    });
+
+    if (updated) {
+      showToast('Service attached to selected booking.', 'success');
+      return true;
+    }
+
+    showToast('No slot booking found to attach this service.', 'error');
+    return false;
+  };
+
   const updateItemQuantity = async (id: string, quantity: number) => {
     const targetItem = items.find(item => item.id === id);
     if (!targetItem) return;
@@ -183,7 +213,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, clearCart, updateItemQuantity, isOpen, setIsOpen }}>
+    <CartContext.Provider value={{ items, addItem, attachServiceToLatestSlot, removeItem, clearCart, updateItemQuantity, isOpen, setIsOpen }}>
       {children}
     </CartContext.Provider>
   );

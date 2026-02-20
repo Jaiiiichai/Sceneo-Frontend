@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Users, DollarSign, TrendingUp, LogOut, Menu, X, Eye, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Users, DollarSign, TrendingUp, LogOut, Menu, X, Eye, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/network';
 
 interface Booking {
   id: string;
+  rawDate: string;
   customerName: string;
   email: string;
   phone: string;
@@ -32,6 +33,31 @@ interface Booking {
   };
 }
 
+interface ApiBooking {
+  id: number;
+  user_id: number;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  booking_type: 'professional_slots' | 'whole_studio' | 'Whole Studio' | 'Studio Slot';
+  booking_date: string;
+  booking_time: string;
+  booking_status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  booking_price: number;
+  service_type?: string;
+  service_provider_id?: number;
+  created_at: string;
+  updated_at: string;
+  users?: {
+    email?: string;
+    full_name?: string;
+  };
+  providers?: {
+    full_name?: string;
+    service_type?: string;
+  };
+}
+
 interface ClosedDate {
   id: number;
   closed_date: string;
@@ -39,99 +65,107 @@ interface ClosedDate {
   created_at: string;
 }
 
+interface Provider {
+  id: number;
+  full_name: string;
+  service_type: 'photography' | 'editor' | 'make_up_artist' | string;
+  rate: number;
+}
+
+const formatDisplayDate = (dateValue: string): string => {
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const localDate = new Date(year, (month || 1) - 1, day || 1);
+  return localDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatDisplayTime = (timeValue: string): string => {
+  const [hourPart = '0', minutePart = '0'] = timeValue.split(':');
+  let hours = Number(hourPart);
+  const minutes = minutePart.padStart(2, '0');
+  const period = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${hours}:${minutes} ${period}`;
+};
+
+const mapProviderToServices = (provider?: { full_name?: string; service_type?: string }) => {
+  const services: Booking['services'] = {};
+  if (!provider?.full_name || !provider?.service_type) {
+    return services;
+  }
+
+  const normalizedType = provider.service_type.toLowerCase();
+
+  if (normalizedType.includes('photo')) {
+    services.photographer = { enabled: true, name: provider.full_name };
+  } else if (normalizedType.includes('edit')) {
+    services.editor = { enabled: true, name: provider.full_name };
+  } else if (normalizedType.includes('make')) {
+    services.makeupArtist = { enabled: true, name: provider.full_name };
+  }
+
+  return services;
+};
+
+const mapApiBookingToBooking = (booking: ApiBooking): Booking => ({
+  id: String(booking.id),
+  rawDate: booking.booking_date,
+  customerName: booking.customer_name || booking.users?.full_name || 'Unknown Customer',
+  email: booking.customer_email || booking.users?.email || 'N/A',
+  phone: booking.customer_phone || 'N/A',
+  studio: booking.booking_type === 'whole_studio' || booking.booking_type === 'Whole Studio'
+    ? 'WHOLE STUDIO'
+    : 'STUDIO SLOT',
+  date: formatDisplayDate(booking.booking_date),
+  time: formatDisplayTime(booking.booking_time),
+  duration: '55 MIN',
+  price: `₱${Number(booking.booking_price || 0).toLocaleString()}`,
+  status: booking.booking_status,
+  services: mapProviderToServices(booking.providers),
+});
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [admin, setAdmin] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'availability'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'availability' | 'providers'>('overview');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [dateFilter, setDateFilter] = useState<string>(''); // Empty string means show all dates
+  const [nameFilter, setNameFilter] = useState<string>('');
   const [confirmationToast, setConfirmationToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({ show: false, message: '', type: 'success' });
   const [confirmModal, setConfirmModal] = useState<{ show: boolean; date: string; action: 'open' | 'close'; formattedDate: string }>({ show: false, date: '', action: 'open', formattedDate: '' });
 
-  // Mock bookings data
-  const [bookings, setBookings] = useState<Booking[]>([
-    {
-      id: '1',
-      customerName: 'John Doe',
-      email: 'john@example.com',
-      phone: '+63 912 345 6789',
-      studio: 'Professional Studio',
-      date: '2026-02-15',
-      time: '1:00 PM',
-      duration: '2 HR',
-      price: '₱600',
-      status: 'confirmed',
-      services: {
-        photographer: {
-          enabled: true,
-          name: 'Maria Santos',
-        },
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  // Fetch bookings from API
+  const fetchBookings = async () => {
+    try {
+      const result = await api.get('/bookings', { requiresAuth: true });
+      if (result.success && Array.isArray(result.data)) {
+        const mappedBookings = result.data.map((item: ApiBooking) => mapApiBookingToBooking(item));
+        setBookings(mappedBookings);
+      } else {
+        setBookings([]);
       }
-    },
-    {
-      id: '2',
-      customerName: 'Jane Smith',
-      email: 'jane@example.com',
-      phone: '+63 923 456 7890',
-      studio: 'Creative Space',
-      date: '2026-02-16',
-      time: '3:30 PM',
-      duration: '1 HR 30 MIN',
-      price: '₱450',
-      status: 'pending',
-      services: {
-        photographer: {
-          enabled: true,
-          name: 'Carlos Reyes',
-        },
-        editor: {
-          enabled: true,
-          name: 'Anna Cruz',
-        },
-        makeupArtist: {
-          enabled: true,
-          name: 'Lisa Tan',
-        },
-      }
-    },
-    {
-      id: '3',
-      customerName: 'Mike Johnson',
-      email: 'mike@example.com',
-      phone: '+63 934 567 8901',
-      studio: 'Grand Studio (Whole Day)',
-      date: '2026-02-20',
-      time: '9:00 AM',
-      duration: '8 HR',
-      price: '₱5000',
-      status: 'completed',
-      services: {}
-    },
-    {
-      id: '4',
-      customerName: 'Sarah Williams',
-      email: 'sarah@example.com',
-      phone: '+63 945 678 9012',
-      studio: 'Professional Studio',
-      date: '2026-02-18',
-      time: '2:00 PM',
-      duration: '1 HR 30 MIN',
-      price: '₱450',
-      status: 'cancelled',
-      services: {
-        photographer: {
-          enabled: true,
-          name: 'John Dela Cruz',
-        },
-      }
-    },
-  ]);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+      setBookings([]);
+      showConfirmation('Unable to load bookings from API.', 'error');
+    }
+  };
+
 
   const [closedDates, setClosedDates] = useState<ClosedDate[]>([]);
   const [currentViewDate, setCurrentViewDate] = useState(new Date(2026, 1, 1)); // February 2026
   const [loading, setLoading] = useState(false);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [providersLoading, setProvidersLoading] = useState(false);
+  const [providerForm, setProviderForm] = useState({
+    full_name: '',
+    service_type: 'photography',
+    rate: '',
+  });
+  const [editingProviderId, setEditingProviderId] = useState<number | null>(null);
 
   // Fetch closed dates from API
   const fetchClosedDates = async () => {
@@ -150,6 +184,88 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchProviders = async () => {
+    try {
+      setProvidersLoading(true);
+      const result = await api.get('/providers');
+      if (result.success && Array.isArray(result.data)) {
+        setProviders(result.data);
+      } else {
+        setProviders([]);
+      }
+    } catch (error) {
+      console.error('Error fetching providers:', error);
+      setProviders([]);
+      showConfirmation('Unable to load providers.', 'error');
+    } finally {
+      setProvidersLoading(false);
+    }
+  };
+
+  const resetProviderForm = () => {
+    setProviderForm({
+      full_name: '',
+      service_type: 'photography',
+      rate: '',
+    });
+    setEditingProviderId(null);
+  };
+
+  const handleProviderSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!providerForm.full_name.trim() || !providerForm.rate) {
+      showConfirmation('Please fill in provider name and rate.', 'error');
+      return;
+    }
+
+    const payload = {
+      full_name: providerForm.full_name.trim(),
+      service_type: providerForm.service_type,
+      rate: Number(providerForm.rate),
+    };
+
+    try {
+      setProvidersLoading(true);
+
+      if (editingProviderId) {
+        await api.put(`/providers/${editingProviderId}`, payload, { requiresAuth: true });
+        showConfirmation('Provider updated successfully.', 'success');
+      } else {
+        await api.post('/providers', payload, { requiresAuth: true });
+        showConfirmation('Provider created successfully.', 'success');
+      }
+
+      resetProviderForm();
+      await fetchProviders();
+    } catch (error) {
+      console.error('Error saving provider:', error);
+      showConfirmation('Failed to save provider.', 'error');
+    } finally {
+      setProvidersLoading(false);
+    }
+  };
+
+  const handleEditProvider = (provider: Provider) => {
+    setEditingProviderId(provider.id);
+    setProviderForm({
+      full_name: provider.full_name,
+      service_type: provider.service_type,
+      rate: String(provider.rate),
+    });
+  };
+
+  const handleDeleteProvider = async (providerId: number) => {
+    try {
+      await api.delete(`/providers/${providerId}`, { requiresAuth: true });
+      showConfirmation('Provider deleted successfully.', 'success');
+      await fetchProviders();
+    } catch (error) {
+      console.error('Error deleting provider:', error);
+      showConfirmation('Failed to delete provider.', 'error');
+    }
+  };
+
   useEffect(() => {
     const adminData = localStorage.getItem('sceneo_admin');
     if (!adminData) {
@@ -160,6 +276,8 @@ export default function AdminDashboard() {
     
     // Fetch closed dates on mount
     fetchClosedDates();
+    fetchBookings();
+    fetchProviders();
   }, [router]);
 
   const handleLogout = () => {
@@ -171,7 +289,9 @@ export default function AdminDashboard() {
     totalBookings: bookings.length,
     pendingBookings: bookings.filter(b => b.status === 'pending').length,
     revenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + parseFloat(b.price.replace(/[^0-9.]/g, '')), 0),
-    completionRate: Math.round((bookings.filter(b => b.status === 'completed').length / bookings.length) * 100),
+    completionRate: bookings.length > 0
+      ? Math.round((bookings.filter(b => b.status === 'completed').length / bookings.length) * 100)
+      : 0,
   };
 
   const toggleDateAvailability = (date: string) => {
@@ -361,6 +481,14 @@ export default function AdminDashboard() {
           >
             Availability
           </button>
+          <button
+            onClick={() => setActiveTab('providers')}
+            className={`flex-1 min-w-[120px] px-6 py-3 rounded-lg font-bold transition-all ${
+              activeTab === 'providers' ? 'bg-black text-white' : 'text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            Providers
+          </button>
         </div>
 
         {/* Overview Tab */}
@@ -435,6 +563,25 @@ export default function AdminDashboard() {
               
               {/* Date Filter */}
               <div className="mb-4 pb-4 border-b-2 border-gray-200">
+                <label className="block text-sm font-semibold text-gray-600 mb-2">Search by Customer Name</label>
+                <div className="flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    value={nameFilter}
+                    onChange={(e) => setNameFilter(e.target.value)}
+                    placeholder="Type customer name..."
+                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  />
+                  {nameFilter && (
+                    <button
+                      onClick={() => setNameFilter('')}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
                 <label className="block text-sm font-semibold text-gray-600 mb-2">Filter by Date</label>
                 <div className="flex gap-2">
                   <input
@@ -518,13 +665,16 @@ export default function AdminDashboard() {
                   const filteredBookings = bookings.filter(booking => {
                     // Status filter
                     const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
+
+                    // Name filter
+                    const matchesName =
+                      !nameFilter ||
+                      booking.customerName.toLowerCase().includes(nameFilter.toLowerCase());
                     
                     // Date filter - check if booking.date matches the selected filter date
-                    const matchesDate = !dateFilter || booking.date.includes(
-                      new Date(dateFilter).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                    );
+                    const matchesDate = !dateFilter || booking.rawDate === dateFilter;
                     
-                    return matchesStatus && matchesDate;
+                    return matchesStatus && matchesDate && matchesName;
                   });
                   
                   return (
@@ -860,6 +1010,124 @@ export default function AdminDashboard() {
                   <p className="text-gray-600 text-sm">All dates are currently open for booking</p>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Providers Tab */}
+        {activeTab === 'providers' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-white rounded-xl p-6 border-2 border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-gray-900">All Providers</h2>
+                <button
+                  onClick={fetchProviders}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-colors"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {providersLoading ? (
+                <p className="text-gray-600">Loading providers...</p>
+              ) : providers.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users size={48} className="text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-semibold">No providers found</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {providers.map(provider => (
+                    <div key={provider.id} className="p-4 border-2 border-gray-200 rounded-xl">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                          <p className="font-bold text-gray-900">{provider.full_name}</p>
+                          <p className="text-sm text-gray-600">Type: {provider.service_type}</p>
+                          <p className="text-sm text-gray-600">Rate: ₱{Number(provider.rate).toLocaleString()}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditProvider(provider)}
+                            className="px-3 py-2 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProvider(provider.id)}
+                            className="px-3 py-2 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                          >
+                            <span className="inline-flex items-center gap-1"><Trash2 size={12} /> Delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-xl p-6 border-2 border-gray-200 h-fit">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                {editingProviderId ? 'Update Provider' : 'Add Provider'}
+              </h2>
+
+              <form onSubmit={handleProviderSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={providerForm.full_name}
+                    onChange={(e) => setProviderForm(prev => ({ ...prev, full_name: e.target.value }))}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                    placeholder="Provider full name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">Service Type</label>
+                  <select
+                    value={providerForm.service_type}
+                    onChange={(e) => setProviderForm(prev => ({ ...prev, service_type: e.target.value }))}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  >
+                    <option value="photography">photography</option>
+                    <option value="editor">editor</option>
+                    <option value="make_up_artist">make_up_artist</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">Rate</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={providerForm.rate}
+                    onChange={(e) => setProviderForm(prev => ({ ...prev, rate: e.target.value }))}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                    placeholder="1500"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Plus size={14} /> {editingProviderId ? 'Update Provider' : 'Add Provider'}
+                    </span>
+                  </button>
+                  {editingProviderId && (
+                    <button
+                      type="button"
+                      onClick={resetProviderForm}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </form>
             </div>
           </div>
         )}

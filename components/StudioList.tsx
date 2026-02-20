@@ -215,6 +215,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
                     params.set('name', studio.name);
                     params.set('price', studio.price);
                     params.set('duration', studio.duration);
+                    params.set('bookingType', bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots');
                     if (selectedDate) params.set('date', formatLocalDate(selectedDate));
                     router.push(`/pages/booking/checkout?${params.toString()}`);
                   }
@@ -298,6 +299,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
                   params.set('name', studio.name);
                   params.set('price', studio.price);
                   params.set('duration', studio.duration);
+                  params.set('bookingType', bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots');
                   if (selectedDate) params.set('date', formatLocalDate(selectedDate));
                   router.push(`/pages/booking/checkout?${params.toString()}`);
                 }

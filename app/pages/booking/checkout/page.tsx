@@ -22,6 +22,12 @@ export default function BookingCheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [directBookingItem, setDirectBookingItem] = useState<CartItem | null>(null);
 
+  const goToProviderSelection = (type: 'photographer' | 'editor' | 'makeup_artist') => {
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('type', type);
+    router.push(`/pages/booking/checkout/select-professional?${params.toString()}`);
+  };
+
   // Helper function to format date in local timezone as YYYY-MM-DD
   const formatLocalDate = (date: Date): string => {
     const year = date.getFullYear();
@@ -119,13 +125,13 @@ export default function BookingCheckoutPage() {
           customer_name: name,
           customer_email: email,
           customer_phone: phone || '',
-          booking_type: item.bookingType || 'professional_slots',
+          booking_type: item.bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots',
           booking_date: item.bookingDate || formatLocalDate(new Date()),
           booking_time: parseTime(item.time),
           booking_status: 'confirmed',
           booking_price: parseFloat(item.price.replace(/[^0-9.]/g, '')),
-          service_type: item.serviceType || item.name,
-          service_provider_id: item.serviceProviderId || 1,
+          service_type: item.serviceType || null,
+          service_provider_id: item.serviceProviderId ?? null,
           time_slot_id: item.timeSlotId || extractUUID(item.id)
         };
 
@@ -177,6 +183,11 @@ export default function BookingCheckoutPage() {
       ? bookingTypeParam 
       : 'professional_slots';
 
+    const providerIdParam = searchParams.get('provider_id');
+    const providerTypeParam = searchParams.get('provider_type');
+    const providerNameParam = searchParams.get('provider_name');
+    const parsedProviderId = providerIdParam ? Number(providerIdParam) : undefined;
+
     setDirectBookingItem({
       id: `direct-${studioId}-${date}`,
       time,
@@ -186,6 +197,9 @@ export default function BookingCheckoutPage() {
       bookingDate: date,
       timeSlotId,
       bookingType,
+      serviceProviderId: Number.isFinite(parsedProviderId) ? parsedProviderId : undefined,
+      serviceType: providerTypeParam || undefined,
+      serviceProviderName: providerNameParam || undefined,
     });
   // only run when search params string changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -276,7 +290,7 @@ export default function BookingCheckoutPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <button
                   type="button"
-                  onClick={() => router.push('/pages/booking/checkout/select-professional?type=photographer')}
+                  onClick={() => goToProviderSelection('photographer')}
                   className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-6 text-center hover:border-black transition-all duration-300 transform hover:-translate-y-1"
                 >
                   <div className="text-4xl mb-3">📸</div>
@@ -286,7 +300,7 @@ export default function BookingCheckoutPage() {
 
                 <button
                   type="button"
-                  onClick={() => router.push('/pages/booking/checkout/select-professional?type=editor')}
+                  onClick={() => goToProviderSelection('editor')}
                   className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-6 text-center hover:border-black transition-all duration-300 transform hover:-translate-y-1"
                 >
                   <div className="text-4xl mb-3">✍️</div>
@@ -296,7 +310,7 @@ export default function BookingCheckoutPage() {
 
                 <button
                   type="button"
-                  onClick={() => router.push('/pages/booking/checkout/select-professional?type=makeup_artist')}
+                  onClick={() => goToProviderSelection('makeup_artist')}
                   className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-6 text-center hover:border-black transition-all duration-300 transform hover:-translate-y-1"
                 >
                   <div className="text-4xl mb-3">💄</div>
@@ -329,6 +343,11 @@ export default function BookingCheckoutPage() {
                           <div className="text-sm text-gray-400 mt-1">
                             {it.bookingDate ? new Date(it.bookingDate + 'T00:00:00').toLocaleDateString() : 'No date selected'}
                           </div>
+                          {it.serviceProviderName && (
+                            <div className="text-sm text-gray-300 mt-1">
+                              Service: {it.serviceProviderName}
+                            </div>
+                          )}
                         </div>
                         <div className="font-bold text-white">{it.price}</div>
                       </div>
