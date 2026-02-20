@@ -177,7 +177,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
             )}
             <div className="flex flex-col gap-2">
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!isBookingDisabled(studio.status)) {
                     const formattedDate = selectedDate ? formatLocalDate(selectedDate) : undefined;
                     console.log('=== ADD TO CART CLICKED ===');
@@ -185,7 +185,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
                     console.log('Selected Date:', selectedDate);
                     console.log('Formatted Date:', formattedDate);
                     
-                    addItem({
+                    await addItem({
                       id: studio.id,
                       time: studio.time,
                       name: studio.name,
@@ -259,7 +259,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
             {/* Book Buttons */}
             <div className="flex-shrink-0 flex gap-2">
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (!isBookingDisabled(studio.status)) {
                   const formattedDate = selectedDate ? formatLocalDate(selectedDate) : undefined;
                   console.log('=== ADD TO CART CLICKED (Desktop) ===');
@@ -267,7 +267,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
                   console.log('Selected Date:', selectedDate);
                   console.log('Formatted Date:', formattedDate);
                   
-                  addItem({
+                  await addItem({
                     id: studio.id,
                     time: studio.time,
                     name: studio.name,

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/authContext';
 
 export default function LoginPage() {
@@ -14,12 +14,21 @@ export default function LoginPage() {
   
   const { login, loginWithGoogle, loginWithFacebook } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const getRedirectPath = () => {
+    const next = searchParams.get('next');
+    if (!next || !next.startsWith('/')) {
+      return '/';
+    }
+    return next;
+  };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
       await loginWithGoogle();
-      router.push('/');
+      router.push(getRedirectPath());
     } catch {
       setError('Failed to login with Google');
     } finally {
@@ -31,7 +40,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await loginWithFacebook();
-      router.push('/');
+      router.push(getRedirectPath());
     } catch {
       setError('Failed to login with Facebook');
     } finally {
@@ -46,7 +55,7 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      router.push('/');
+      router.push(getRedirectPath());
     } catch {
       setError('Invalid email or password');
     } finally {

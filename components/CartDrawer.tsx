@@ -1,11 +1,17 @@
 'use client';
 
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { X, Trash2, ShoppingBag } from 'lucide-react';
 import { useCart } from '@/lib/cartContext';
 
 export default function CartDrawer() {
   const { items, removeItem, isOpen, setIsOpen } = useCart();
+  const router = useRouter();
+
+  const handleProceedToCheckout = () => {
+    setIsOpen(false);
+    router.push('/pages/booking/checkout');
+  };
 
   const total = items.reduce((sum, item) => {
     const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
@@ -100,13 +106,12 @@ export default function CartDrawer() {
             </div>
 
             <div className="space-y-3">
-              <Link
-                href="/pages/booking/checkout"
-                onClick={() => setIsOpen(false)}
+              <button
+                onClick={handleProceedToCheckout}
                 className="block text-center w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-all transform hover:scale-105 active:scale-95"
               >
                 Proceed to Checkout
-              </Link>
+              </button>
 
               <button
                 onClick={() => setIsOpen(false)}

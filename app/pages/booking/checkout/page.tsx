@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCart } from '@/lib/cartContext';
+import { CartItem, useCart } from '@/lib/cartContext';
 import { useAuth } from '@/lib/authContext';
 import { api } from '@/network';
 import { useToast } from '@/lib/toastContext';
 
 export default function BookingCheckoutPage() {
-  const { items, clearCart, setIsOpen, addItem } = useCart();
+  const { items, clearCart, setIsOpen } = useCart();
   const { user, fetchUser, isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
@@ -20,6 +20,7 @@ export default function BookingCheckoutPage() {
   const [acceptPolicy, setAcceptPolicy] = useState(true);
   const [allowCompanions, setAllowCompanions] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [directBookingItem, setDirectBookingItem] = useState<CartItem | null>(null);
 
   // Helper function to format date in local timezone as YYYY-MM-DD
   const formatLocalDate = (date: Date): string => {
@@ -29,7 +30,13 @@ export default function BookingCheckoutPage() {
     return `${year}-${month}-${day}`;
   };
 
-  const total = items.reduce((sum, it) => sum + parseFloat(it.price.replace(/[^0-9.]/g, '')), 0);
+  const checkoutItems = items.length > 0
+    ? items
+    : directBookingItem
+    ? [directBookingItem]
+    : [];
+
+  const total = checkoutItems.reduce((sum, it) => sum + parseFloat(it.price.replace(/[^0-9.]/g, '')), 0);
 
   // Fetch user data on mount and auto-fill form
   useEffect(() => {
@@ -58,7 +65,7 @@ export default function BookingCheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || items.length === 0) {
+    if (!name || !email || checkoutItems.length === 0) {
       showToast('Please provide name, email and at least one booking item.', 'error');
       return;
     }
@@ -69,7 +76,8 @@ export default function BookingCheckoutPage() {
     
     if (!isAuthenticated()) {
       showToast('Please log in to complete your booking.', 'error');
-      router.push('/pages/Auth/login');
+      const nextPath = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : '/pages/booking/checkout';
+      router.push(`/pages/Auth/login?next=${encodeURIComponent(nextPath)}`);
       return;
     }
 
@@ -83,8 +91,8 @@ export default function BookingCheckoutPage() {
         return uuidMatch ? uuidMatch[0] : id;
       };
 
-      // Create bookings for each cart item
-      const bookingPromises = items.map(async (item) => {
+      // Create bookings for each checkout item
+      const bookingPromises = checkoutItems.map(async (item) => {
         // Parse time to HH:MM:SS format
         const parseTime = (timeStr: string): string => {
           // If already in HH:MM:SS format, return as is
@@ -153,35 +161,32 @@ export default function BookingCheckoutPage() {
   useEffect(() => {
     if (!searchParams) return;
     const studioId = searchParams.get('studioId');
-    if (studioId) {
-      const date = searchParams.get('date') || formatLocalDate(new Date());
-      const exists = items.find((it) => it.timeSlotId === studioId && it.bookingDate === date);
-      if (!exists) {
-        const time = searchParams.get('time') || '';
-        const name = searchParams.get('name') || 'Studio Booking';
-        const price = searchParams.get('price') || '₱0';
-        const duration = searchParams.get('duration') || '';
-        const timeSlotId = searchParams.get('timeSlotId') || studioId;
-        const bookingTypeParam = searchParams.get('bookingType') || 'professional_slots';
-        const bookingType = (bookingTypeParam === 'whole_studio' || bookingTypeParam === 'professional_slots') 
-          ? bookingTypeParam 
-          : 'professional_slots';
-        
-        console.log('=== ADDING FROM URL PARAMS ===');
-        console.log('Date from URL:', date);
-        
-        addItem({ 
-          id: studioId, 
-          time, 
-          name, 
-          price, 
-          duration,
-          bookingDate: date,
-          timeSlotId,
-          bookingType
-        });
-      }
+    if (!studioId) {
+      setDirectBookingItem(null);
+      return;
     }
+
+    const date = searchParams.get('date') || formatLocalDate(new Date());
+    const time = searchParams.get('time') || '';
+    const name = searchParams.get('name') || 'Studio Booking';
+    const price = searchParams.get('price') || '₱0';
+    const duration = searchParams.get('duration') || '';
+    const timeSlotId = searchParams.get('timeSlotId') || studioId;
+    const bookingTypeParam = searchParams.get('bookingType') || 'professional_slots';
+    const bookingType = (bookingTypeParam === 'whole_studio' || bookingTypeParam === 'professional_slots') 
+      ? bookingTypeParam 
+      : 'professional_slots';
+
+    setDirectBookingItem({
+      id: `direct-${studioId}-${date}`,
+      time,
+      name,
+      price,
+      duration,
+      bookingDate: date,
+      timeSlotId,
+      bookingType,
+    });
   // only run when search params string changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams?.toString()]);
@@ -308,13 +313,13 @@ export default function BookingCheckoutPage() {
               <h2 className="text-2xl font-bold mb-6">Booking Summary</h2>
 
               <div className="space-y-4 mb-6">
-                {items.length === 0 ? (
+                {checkoutItems.length === 0 ? (
                   <div className="text-center py-8">
                     <div className="text-5xl mb-3 opacity-50">📅</div>
                     <p className="text-gray-400">No bookings yet</p>
                   </div>
                 ) : (
-                  items.map((it) => (
+                  checkoutItems.map((it) => (
                     <div key={it.id} className="bg-white/10 backdrop-blur rounded-xl p-4 border border-white/20">
                       <div className="flex items-start gap-3">
                         <div className="text-2xl">📸</div>
@@ -332,7 +337,7 @@ export default function BookingCheckoutPage() {
                 )}
               </div>
 
-              {items.length > 0 && (
+              {checkoutItems.length > 0 && (
                 <>
                   <div className="border-t border-white/20 pt-4 space-y-3">
                     <div className="flex justify-between text-gray-300">

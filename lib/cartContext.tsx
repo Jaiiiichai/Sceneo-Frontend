@@ -39,6 +39,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, token, user } = useAuth();
   const { showToast } = useToast();
 
+  const redirectToLogin = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const nextPath = `${window.location.pathname}${window.location.search}`;
+    window.location.href = `/pages/Auth/login?next=${encodeURIComponent(nextPath)}`;
+  }, []);
+
   const mapApiItemToCartItem = useCallback((item: CartItemResponse): CartItem => {
     const displayTime = item.time_slots?.display_time || item.time_slot_id;
     const bookingType = item.time_slots?.booking_type || 'professional_slots';
@@ -86,7 +92,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addItem = async (item: CartItem) => {
     const hasServerPayload = Boolean(item.timeSlotId && item.bookingDate);
 
-    if (!hasServerPayload || !isAuthenticated()) {
+    if (!isAuthenticated()) {
+      showToast('Please log in to add items to cart.', 'error');
+      redirectToLogin();
+      return;
+    }
+
+    if (!hasServerPayload) {
       setItems(prevItems => [...prevItems, { ...item, id: `${item.id}-${Date.now()}` }]);
       showToast('Item added to cart.', 'success');
       return;
@@ -103,8 +115,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       showToast('Item added to cart.', 'success');
     } catch (error) {
       if (error instanceof APIError && error.status === 401) {
-        setItems(prevItems => [...prevItems, { ...item, id: `${item.id}-${Date.now()}` }]);
-        showToast('Item added locally. Please log in to sync cart.', 'info');
+        showToast('Session expired. Please log in again.', 'error');
+        redirectToLogin();
         return;
       }
 
