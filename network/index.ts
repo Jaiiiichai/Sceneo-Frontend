@@ -52,6 +52,13 @@ export const API_ENDPOINTS = {
   timeSlots: {
     list: '/time-slots',
   },
+  carts: {
+    get: '/carts',
+    addItem: '/carts/items',
+    updateItem: (itemId: number | string) => `/carts/items/${itemId}`,
+    removeItem: (itemId: number | string) => `/carts/items/${itemId}`,
+    clear: '/carts/clear',
+  },
 };
 
 /**

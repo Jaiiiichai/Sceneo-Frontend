@@ -3,7 +3,7 @@
  * Fetches available time slots from the API
  */
 
-import { api } from '@/network';
+import { api, APIError } from '@/network';
 
 export type BookingType = 'whole_studio' | 'professional_slots' | 'both';
 
@@ -39,6 +39,20 @@ interface ApiTimeSlot {
   updated_at: string;
 }
 
+interface AvailableSlotItem {
+  id: string;
+  remaining: number;
+}
+
+function mapInventoryToAvailableSlotItems(inventory: SlotInventoryItem[]): AvailableSlotItem[] {
+  return inventory
+    .filter(item => item.time_slots?.is_active)
+    .map(item => ({
+      id: item.time_slot_id,
+      remaining: item.remaining,
+    }));
+}
+
 // Slot Inventory API Response interface
 interface SlotInventoryItem {
   id: number;
@@ -71,6 +85,17 @@ export interface TimeSlotWithInventory extends TimeSlot {
 let cachedTimeSlots: ApiTimeSlot[] | null = null;
 let lastFetchTime: number = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+function formatBookingDate(date: Date | string): string {
+  if (typeof date === 'string') {
+    return date.slice(0, 10);
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 /**
  * Fetch all time slots from the API
@@ -125,6 +150,40 @@ export async function fetchSlotInventory(date: Date | string): Promise<SlotInven
     return [];
   } catch (error) {
     console.error('Error fetching slot inventory:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch available time slot IDs and remaining capacity for a specific date
+ * @param date - Date string in YYYY-MM-DD format or Date object
+ */
+export async function fetchAvailableSlots(date: Date | string): Promise<AvailableSlotItem[]> {
+  try {
+    const bookingDate = formatBookingDate(date);
+
+    const response = await api.get('/time-slots/available', {
+      params: { booking_date: bookingDate },
+    });
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    return [];
+  } catch (error) {
+    const isSchemaCacheError =
+      error instanceof APIError &&
+      error.data?.code === 'PGRST204' &&
+      String(error.data?.message || '').includes('time_slot_id');
+
+    if (isSchemaCacheError) {
+      console.warn('Falling back to /slot-inventory due to backend schema cache mismatch on /time-slots/available');
+      const inventory = await fetchSlotInventory(date);
+      return mapInventoryToAvailableSlotItems(inventory);
+    }
+
+    console.error('Error fetching available time slots:', error);
     return [];
   }
 }
@@ -454,9 +513,23 @@ export async function getSlotsForDay(dayOfWeek: number): Promise<TimeSlot[]> {
  * @param date - Date object or date string
  */
 export async function getSlotsForDate(date: Date | string): Promise<TimeSlot[]> {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  const dayOfWeek = dateObj.getDay();
-  return getSlotsForDay(dayOfWeek);
+  const [apiSlots, availableSlots] = await Promise.all([
+    fetchAllTimeSlots(),
+    fetchAvailableSlots(date),
+  ]);
+
+  if (availableSlots.length === 0) {
+    return [];
+  }
+
+  const remainingById = new Map(availableSlots.map(slot => [slot.id, slot.remaining]));
+
+  return apiSlots
+    .filter(slot => slot.is_active && remainingById.has(slot.id))
+    .map(slot => ({
+      ...mapApiTimeSlot(slot),
+      capacity: remainingById.get(slot.id),
+    }));
 }
 
 /**

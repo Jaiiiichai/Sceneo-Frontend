@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCart } from '@/lib/cartContext';
 import { useAuth } from '@/lib/authContext';
 import { api } from '@/network';
+import { useToast } from '@/lib/toastContext';
 
 export default function BookingCheckoutPage() {
   const { items, clearCart, setIsOpen, addItem } = useCart();
   const { user, fetchUser, isAuthenticated } = useAuth();
+  const { showToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -57,16 +59,16 @@ export default function BookingCheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || items.length === 0) {
-      alert('Please provide name, email and at least one booking item');
+      showToast('Please provide name, email and at least one booking item.', 'error');
       return;
     }
     if (!acceptPolicy) {
-      alert('Please agree to the cancellation policy');
+      showToast('Please agree to the cancellation policy.', 'error');
       return;
     }
     
     if (!isAuthenticated()) {
-      alert('Please log in to complete your booking');
+      showToast('Please log in to complete your booking.', 'error');
       router.push('/pages/Auth/login');
       return;
     }
@@ -132,17 +134,17 @@ export default function BookingCheckoutPage() {
       const allSuccessful = results.every(result => result.success);
       
       if (allSuccessful) {
-        alert(`Booking confirmed for ${name}. Total: ₱${total.toFixed(2)}`);
-        clearCart();
+        showToast(`Booking confirmed for ${name}.`, 'success');
+        await clearCart();
         setIsOpen(false);
         router.push('/');
       } else {
         const failedCount = results.filter(r => !r.success).length;
-        alert(`${failedCount} booking(s) failed. Please try again or contact support.`);
+        showToast(`${failedCount} booking(s) failed. Please try again.`, 'error');
       }
     } catch (error) {
       console.error('Booking error:', error);
-      alert('An error occurred while creating your booking. Please try again.');
+      showToast('An error occurred while creating your booking. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -152,13 +154,13 @@ export default function BookingCheckoutPage() {
     if (!searchParams) return;
     const studioId = searchParams.get('studioId');
     if (studioId) {
-      const exists = items.find((it) => it.id === studioId);
+      const date = searchParams.get('date') || formatLocalDate(new Date());
+      const exists = items.find((it) => it.timeSlotId === studioId && it.bookingDate === date);
       if (!exists) {
         const time = searchParams.get('time') || '';
         const name = searchParams.get('name') || 'Studio Booking';
         const price = searchParams.get('price') || '₱0';
         const duration = searchParams.get('duration') || '';
-        const date = searchParams.get('date') || formatLocalDate(new Date());
         const timeSlotId = searchParams.get('timeSlotId') || studioId;
         const bookingTypeParam = searchParams.get('bookingType') || 'professional_slots';
         const bookingType = (bookingTypeParam === 'whole_studio' || bookingTypeParam === 'professional_slots') 

@@ -20,12 +20,11 @@ interface Studio {
 }
 
 interface StudioListProps {
-  studios?: Studio[];
   selectedDate?: Date;
   bookingType: BookingType; // Add this prop
 }
 
-export default function StudioList({ studios, selectedDate, bookingType }: StudioListProps) {
+export default function StudioList({ selectedDate, bookingType }: StudioListProps) {
   const [generatedStudios, setGeneratedStudios] = useState<Studio[]>([]);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -61,11 +60,11 @@ export default function StudioList({ studios, selectedDate, bookingType }: Studi
         // Generate studio listings from time slots
         const studios = filteredSlots.map((slot) => {
           const isTooClose = isSlotTooClose(slot, selectedDate);
-          const capacity = slot.capacity || (bookingType === 'whole_studio' ? 1 : 5);
+          const capacity = slot.capacity ?? (bookingType === 'whole_studio' ? 1 : 5);
           
           // Determine status based on capacity and time
           let status: 'available' | 'registration_closed' | 'fully_booked';
-          if (capacity === 0) {
+          if (capacity <= 0) {
             status = 'fully_booked';
           } else if (isTooClose) {
             status = 'registration_closed';
@@ -124,7 +123,7 @@ export default function StudioList({ studios, selectedDate, bookingType }: Studi
       case 'registration_closed':
         return 'REGISTRATION CLOSED';
       case 'fully_booked':
-        return 'FULLY BOOKED';
+        return 'SLOT FULL';
       default:
         return status;
     }

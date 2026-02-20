@@ -5,6 +5,7 @@ import NavBar from "@/components/NavBar";
 import { CartProvider } from "@/lib/cartContext";
 import { BookingTypeProvider } from "@/lib/bookingContext";
 import { AuthProvider } from "@/lib/authContext";
+import { ToastProvider } from "@/lib/toastContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,14 +32,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased `}
       >
-        <AuthProvider>
-          <BookingTypeProvider>
-            <CartProvider>
-              <NavBar />
-              {children}
-            </CartProvider>
-          </BookingTypeProvider>
-        </AuthProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <BookingTypeProvider>
+              <CartProvider>
+                <NavBar />
+                {children}
+              </CartProvider>
+            </BookingTypeProvider>
+          </AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );

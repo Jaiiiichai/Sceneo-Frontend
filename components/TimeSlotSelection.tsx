@@ -86,8 +86,7 @@ export default function TimeSlotSelection({ selectedDate, onSlotSelect, selected
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {timeSlots.map((slot) => {
-          // TODO: Check actual booking status from API
-          const isBooked = false; // Replace with actual API check
+          const isBooked = (slot.capacity ?? 0) <= 0;
           const isTooClose = selectedDate ? isSlotTooClose(slot, selectedDate) : false;
           const isDisabled = isBooked || isTooClose;
           
@@ -106,7 +105,7 @@ export default function TimeSlotSelection({ selectedDate, onSlotSelect, selected
             >
               <div className="text-sm font-medium">{slot.displayTime}</div>
               <div className="text-xs mt-1 font-semibold">{slot.priceDisplay}</div>
-              {isBooked && <div className="text-xs mt-1 text-red-600">Fully Booked</div>}
+              {isBooked && <div className="text-xs mt-1 text-red-600">Slot Full</div>}
               {isTooClose && !isBooked && <div className="text-xs mt-1 text-orange-600">Too Soon</div>}
             </button>
           );
