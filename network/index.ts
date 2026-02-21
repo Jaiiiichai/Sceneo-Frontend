@@ -124,16 +124,16 @@ async function apiRequest<T = any>(
   const url = buildUrl(endpoint, params);
 
   // Setup headers
-  const requestHeaders: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...headers,
-  };
+  const requestHeaders = new Headers(headers);
+  if (!requestHeaders.has('Content-Type')) {
+    requestHeaders.set('Content-Type', 'application/json');
+  }
 
   // Add authorization header if required
   if (requiresAuth) {
     const token = getAuthToken();
     if (token) {
-      requestHeaders['Authorization'] = `Bearer ${token}`;
+      requestHeaders.set('Authorization', `Bearer ${token}`);
     }
   }
 

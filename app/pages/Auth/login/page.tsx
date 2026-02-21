@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/authContext';
 
 export default function LoginPage() {
@@ -13,10 +13,12 @@ export default function LoginPage() {
   
   const { login } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const getRedirectPath = () => {
-    const next = searchParams.get('next');
+    if (typeof window === 'undefined') {
+      return '/';
+    }
+    const next = new URLSearchParams(window.location.search).get('next');
     if (!next || !next.startsWith('/')) {
       return '/';
     }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { CartItem, useCart } from '@/lib/cartContext';
 import { useAuth } from '@/lib/authContext';
 import { api } from '@/network';
@@ -13,7 +13,6 @@ export default function BookingCheckoutPage() {
   const { user, fetchUser, isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -23,8 +22,15 @@ export default function BookingCheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [directBookingItem, setDirectBookingItem] = useState<CartItem | null>(null);
 
+  const getCurrentSearchParams = () => {
+    if (typeof window === 'undefined') {
+      return new URLSearchParams();
+    }
+    return new URLSearchParams(window.location.search);
+  };
+
   const goToProviderSelection = (type: 'photographer' | 'editor' | 'makeup_artist') => {
-    const params = new URLSearchParams(searchParams?.toString() || '');
+    const params = getCurrentSearchParams();
     params.set('type', type);
     router.push(`/pages/booking/checkout/select-professional?${params.toString()}`);
   };
@@ -167,7 +173,7 @@ export default function BookingCheckoutPage() {
   };
 
   useEffect(() => {
-    if (!searchParams) return;
+    const searchParams = getCurrentSearchParams();
     const studioId = searchParams.get('studioId');
     if (!studioId) {
       setDirectBookingItem(getCheckoutDraft());
@@ -206,9 +212,7 @@ export default function BookingCheckoutPage() {
 
     setDirectBookingItem(directItem);
     setCheckoutDraft(directItem);
-  // only run when search params string changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams?.toString()]);
+  }, []);
 
   return (
     <main className="min-h-screen bg-transparent py-8 sm:py-12">

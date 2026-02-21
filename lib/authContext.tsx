@@ -23,31 +23,12 @@ interface ApiUserLike {
   avatar?: string;
 }
 
-interface OAuthExchangePayload {
-  token?: string;
-  access_token?: string;
-  accessToken?: string;
-  user?: ApiUserLike;
-  data?: {
-    token?: string;
-    access_token?: string;
-    accessToken?: string;
-    user?: ApiUserLike;
-  };
-}
-
 interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: (nextPath?: string) => Promise<void>;
   loginWithFacebook: (nextPath?: string) => Promise<void>;
-  completeOAuthLogin: (params: {
-    provider: 'google' | 'facebook';
-    code?: string;
-    token?: string;
-    nextPath?: string;
-  }) => Promise<string>;
   signup: (name: string, email: string, password: string, phoneNumber?: string) => Promise<void>;
   logout: (silent?: boolean) => void;
   getToken: () => string | null;
@@ -110,11 +91,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (userInfo) {
       setUser(mapUserFromApi(userInfo));
     }
-  };
-
-  const extractToken = (payload: OAuthExchangePayload | null | undefined): string | null => {
-    if (!payload) return null;
-    return payload.token || payload.access_token || payload.accessToken || payload?.data?.token || payload?.data?.access_token || payload?.data?.accessToken || null;
   };
 
   const fetchUserOnMount = useCallback(async () => {
@@ -432,55 +408,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loginWithSocialToken('facebook', accessToken);
   };
 
-  const completeOAuthLogin = async ({ provider, code, token: incomingToken, nextPath }: {
-    provider: 'google' | 'facebook';
-    code?: string;
-    token?: string;
-    nextPath?: string;
-  }): Promise<string> => {
-    const safeNextPath = nextPath && nextPath.startsWith('/') ? nextPath : '/';
-    const tokenFromParams = incomingToken;
-    let resolvedToken = tokenFromParams || null;
-    let userInfo: ApiUserLike | undefined;
-
-    if (!resolvedToken && code) {
-      const exchangeEndpoint = process.env.NEXT_PUBLIC_OAUTH_CALLBACK_EXCHANGE_ENDPOINT || '/auth/oauth/callback';
-      const callbackUri = typeof window !== 'undefined' ? `${window.location.origin}/pages/Auth/oauth-callback` : '';
-
-      const response = await fetch(`${API_BASE_URL}${exchangeEndpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          provider,
-          code,
-          redirect_uri: callbackUri,
-        }),
-      });
-
-      if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || 'OAuth authentication failed');
-      }
-
-      const payload: OAuthExchangePayload = await response.json();
-      resolvedToken = extractToken(payload);
-      userInfo = payload?.data?.user || payload?.user;
-    }
-
-    if (!resolvedToken) {
-      throw new Error('No auth token returned from OAuth flow.');
-    }
-
-    applyAuthSession(resolvedToken, userInfo);
-    if (!userInfo) {
-      await fetchUser();
-    }
-    showToast('Login successful. Welcome back!', 'success');
-    return safeNextPath;
-  };
-
   const signup = async (name: string, email: string, password: string, phoneNumber?: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/users`, {
@@ -553,7 +480,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login, 
       loginWithGoogle, 
       loginWithFacebook, 
-      completeOAuthLogin,
       signup, 
       logout,
       getToken,

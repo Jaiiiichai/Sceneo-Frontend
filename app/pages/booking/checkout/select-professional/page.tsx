@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useCart } from '@/lib/cartContext';
 import { api } from '@/network';
@@ -34,7 +34,6 @@ const getTitleByType = (type: string | null, serviceType: string | null): string
 
 export default function SelectProfessionalPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { addItem, items, attachServiceToLatestSlot } = useCart();
   const { showToast } = useToast();
 
@@ -42,8 +41,15 @@ export default function SelectProfessionalPage() {
   const [loading, setLoading] = useState(false);
   const [pageTitle, setPageTitle] = useState('Select Professional');
 
+  const getSearchParams = () => {
+    if (typeof window === 'undefined') {
+      return new URLSearchParams();
+    }
+    return new URLSearchParams(window.location.search);
+  };
+
   const getCheckoutUrl = () => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = getSearchParams();
     params.delete('type');
     const query = params.toString();
     return query ? `/pages/booking/checkout?${query}` : '/pages/booking/checkout';
@@ -51,6 +57,7 @@ export default function SelectProfessionalPage() {
 
   useEffect(() => {
     const fetchProviders = async () => {
+      const searchParams = getSearchParams();
       const type = searchParams.get('type');
       const serviceType = resolveServiceType(type);
 
@@ -82,9 +89,10 @@ export default function SelectProfessionalPage() {
     };
 
     fetchProviders();
-  }, [searchParams, router]);
+  }, [router, showToast]);
 
   const handleSelectProfessional = async (pro: Provider) => {
+    const searchParams = getSearchParams();
     const hasSlotItem = items.some(item => Boolean(item.timeSlotId));
     const currentDraft = getCheckoutDraft();
     const hasDirectBookingParams = Boolean(searchParams.get('studioId') || searchParams.get('timeSlotId'));
@@ -120,7 +128,7 @@ export default function SelectProfessionalPage() {
       return;
     }
 
-    const params = new URLSearchParams(searchParams.toString());
+    const params = getSearchParams();
     params.delete('type');
     params.set('provider_id', String(pro.id));
     params.set('provider_type', pro.service_type);

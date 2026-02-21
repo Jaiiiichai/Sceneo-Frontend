@@ -1,22 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import StudioList from '@/components/StudioList';
 import DateSelector from '@/components/DateSelector';
 import { useBookingType } from '@/lib/bookingContext'; // Import useBookingType
 
 export default function BookingPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const searchParams = useSearchParams();
   const { bookingType, setBookingType } = useBookingType(); // Consume bookingType from context
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const searchParams = new URLSearchParams(window.location.search);
     const queryType = searchParams?.get('bookingType');
     if (queryType === 'whole_studio' || queryType === 'slot') {
       setBookingType(queryType);
     }
-  }, [searchParams, setBookingType]);
+  }, [setBookingType]);
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto">
