@@ -18,9 +18,58 @@ export default function BookingCheckoutPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [acceptPolicy, setAcceptPolicy] = useState(true);
-  const [allowCompanions, setAllowCompanions] = useState(true);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [directBookingItem, setDirectBookingItem] = useState<CartItem | null>(null);
+
+  const normalizePhilippinePhone = (input: string): string | null => {
+    const compact = input.normalize('NFKC').replace(/[^\d+]/g, '');
+    const digits = compact.replace(/\D/g, '');
+
+    if (/^639\d{9}$/.test(digits)) {
+      return `+${digits}`;
+    }
+
+    if (/^09\d{9}$/.test(digits)) {
+      return `+63${digits.slice(1)}`;
+    }
+
+    if (/^9\d{9}$/.test(digits)) {
+      return `+63${digits}`;
+    }
+
+    return null;
+  };
+
+  const formatPhilippinePhoneInput = (input: string): string => {
+    const cleaned = input.replace(/[^\d+]/g, '');
+    if (!cleaned) return '';
+
+    const digits = cleaned.replace(/\D/g, '');
+    if (!digits) return '';
+
+    if (cleaned.startsWith('+')) {
+      if (digits.startsWith('63')) {
+        return `+63${digits.slice(2, 12)}`;
+      }
+      if (digits.startsWith('0')) {
+        return `+63${digits.slice(1, 11)}`;
+      }
+      return `+63${digits.slice(0, 10)}`;
+    }
+
+    if (digits.startsWith('63')) {
+      return `+63${digits.slice(2, 12)}`;
+    }
+    if (digits.startsWith('0')) {
+      return `+63${digits.slice(1, 11)}`;
+    }
+    if (digits.startsWith('9')) {
+      return `+63${digits.slice(0, 10)}`;
+    }
+
+    return `+63${digits.slice(0, 10)}`;
+  };
 
   const getCurrentSearchParams = () => {
     if (typeof window === 'undefined') {
@@ -72,7 +121,7 @@ export default function BookingCheckoutPage() {
     if (user) {
       setName(user.name || '');
       setEmail(user.email || '');
-      setPhone(user.phone || '');
+      setPhone(formatPhilippinePhoneInput(user.phone || ''));
     }
   }, [user]);
 
@@ -82,6 +131,13 @@ export default function BookingCheckoutPage() {
       showToast('Please provide name, email and at least one booking item.', 'error');
       return;
     }
+
+    const normalizedPhone = normalizePhilippinePhone(phone);
+    if (!normalizedPhone) {
+      showToast('Please enter a valid Philippine mobile number (e.g., 09171234567 or +639171234567).', 'error');
+      return;
+    }
+
     if (!acceptPolicy) {
       showToast('Please agree to the cancellation policy.', 'error');
       return;
@@ -131,7 +187,7 @@ export default function BookingCheckoutPage() {
           user_id: user?.id || 0,
           customer_name: name,
           customer_email: email,
-          customer_phone: phone || '',
+          customer_phone: normalizedPhone,
           booking_type: item.bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots',
           booking_date: item.bookingDate || formatLocalDate(new Date()),
           booking_time: parseTime(item.time),
@@ -256,14 +312,18 @@ export default function BookingCheckoutPage() {
                 </div>
 
                 <label className="block">
-                  <div className="text-sm font-semibold text-gray-700 mb-2">Phone Number</div>
+                  <div className="text-sm font-semibold text-gray-700 mb-2">Phone Number *</div>
                   <input 
                     value={phone} 
-                    onChange={(e) => setPhone(e.target.value)} 
+                    onChange={(e) => setPhone(formatPhilippinePhoneInput(e.target.value))} 
                     className="block w-full rounded-lg border-2 border-gray-200 focus:border-black focus:ring-0 px-4 py-3 transition-colors" 
-                    placeholder="+63 912 345 6789"
+                    placeholder="09171234567 or +639171234567"
+                    required
+                    pattern="^\+639\d{9}$"
+                    title="Enter a valid Philippine mobile number (09171234567 or +639171234567)."
+                    maxLength={13}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Optional - Add manually if not provided</p>
+                  <p className="text-xs text-gray-500 mt-1">Philippine mobile format only</p>
                 </label>
 
                 {/* Policies */}
@@ -275,17 +335,16 @@ export default function BookingCheckoutPage() {
                       onChange={(e) => setAcceptPolicy(e.target.checked)} 
                       className="mt-1 w-5 h-5 rounded border-gray-300 text-black focus:ring-black" 
                     />
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900">I have read and agree to the cancellation policy</span>
-                  </label>
-
-                  <label className="flex items-start gap-3 cursor-pointer group">
-                    <input 
-                      type="checkbox" 
-                      checked={allowCompanions} 
-                      onChange={(e) => setAllowCompanions(e.target.checked)} 
-                      className="mt-1 w-5 h-5 rounded border-gray-300 text-black focus:ring-black" 
-                    />
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900">I understand that companions are only allowed in the waiting area outside the studio</span>
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                      I have read and agree to the{' '}
+                      <button
+                        type="button"
+                        onClick={() => setShowPolicyModal(true)}
+                        className="text-blue-600 hover:text-blue-700 underline font-semibold"
+                      >
+                        cancellation policy
+                      </button>
+                    </span>
                   </label>
                 </div>
               </form>
@@ -402,6 +461,59 @@ export default function BookingCheckoutPage() {
           </aside>
         </div>
       </div>
+
+      {showPolicyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowPolicyModal(false)} />
+          <div className="relative w-full max-w-2xl bg-white rounded-2xl p-6 sm:p-8 shadow-xl border border-gray-200 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Cancellation Policy</h2>
+              <button
+                type="button"
+                onClick={() => setShowPolicyModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+                aria-label="Close policy modal"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-5 text-sm text-gray-700">
+              <div>
+                <h3 className="font-bold text-gray-900 mb-2">CANCELLATION & RESCHEDULING POLICY</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Cancellations and rescheduling are allowed up to 3 hours before the scheduled class.</li>
+                  <li>Requests made after this period will not be accepted.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-gray-900 mb-2">NO-SHOW POLICY</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>If a participant does not show up in the studio without prior notice (a &quot;no-show&quot;), no refunds or rescheduling will be provided.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-gray-900 mb-2">REFUND</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>No refunds will be provided for late cancellations or no-shows.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowPolicyModal(false)}
+                className="px-5 py-2.5 rounded-lg bg-gray-900 text-white font-semibold hover:bg-black"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

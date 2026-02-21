@@ -178,9 +178,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Login response:', response);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Login error response:', errorData);
-        throw new Error(errorData.message || `Login failed with status ${response.status}`);
+        const contentType = response.headers.get('content-type') || '';
+        let backendMessage = '';
+
+        if (contentType.includes('application/json')) {
+          const errorData: unknown = await response.json().catch(() => null);
+          if (errorData && typeof errorData === 'object') {
+            const payload = errorData as {
+              message?: string;
+              error?: string;
+              data?: { message?: string };
+            };
+            backendMessage = payload.message || payload.error || payload.data?.message || '';
+          }
+        }
+
+        if (!backendMessage) {
+          backendMessage = await response.text().catch(() => '');
+        }
+
+        throw new Error(backendMessage || `Login failed with status ${response.status}`);
       }
 
       const userData = await response.json();
@@ -439,13 +456,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const authToken = responseData.token || userData.token;
       const userInfo = responseData.user || userData.user || userData;
 
-      // Store token if present in response
       if (authToken) {
         applyAuthSession(authToken, userInfo);
+        setUser(mapUserFromApi(userInfo, email));
         console.log('✅ Token stored:', authToken);
+      } else {
+        // Some backends create user via /users but don't return auth token.
+        // Immediately log in so user is actually authenticated after signup.
+        await login(email, password);
       }
 
-      setUser(mapUserFromApi(userInfo, email));
+      showToast('Account created successfully.', 'success');
     } catch (error) {
       console.error('Signup error:', error);
       throw error;  // Re-throw so the calling component can handle it
