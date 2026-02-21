@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Menu, X, ShoppingCart, LogOut } from "lucide-react";
+import { Menu, X, ShoppingCart, LogOut, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { useCart } from "@/lib/cartContext";
 import { useAuth } from "@/lib/authContext";
 import CartDrawer from "./CartDrawer";
@@ -11,6 +12,9 @@ import CartDrawer from "./CartDrawer";
 export default function NavBar() {
     const [open, setOpen] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const pathname = usePathname();
+    const isHomePage = pathname === '/';
+    const isAdminRoute = pathname?.startsWith('/admin');
     const { items, setIsOpen } = useCart();
     const { user, logout } = useAuth();
     const userMenuRef = useRef<HTMLDivElement>(null);
@@ -31,11 +35,60 @@ export default function NavBar() {
         };
     }, [showUserMenu]);
 
+    if (isAdminRoute) {
+        return null;
+    }
+
     return (
-        <header className="bg-white border-gray-200">
-            <nav className="max-w-full 2xl:max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-12 xl:px-16 2xl:px-24">
-                <div className="h-16 flex items-center justify-between">
-                 
+        <header className={`${isHomePage ? 'absolute top-0 left-0 right-0 z-40' : 'sticky top-0 z-40'} bg-transparent px-4 sm:px-6 lg:px-8 pt-4`}>
+            <nav
+                className={`mx-auto w-full max-w-6xl rounded-2xl px-4 sm:px-6 shadow-lg ${
+                    isHomePage
+                        ? 'border border-white/70 bg-white/35 backdrop-blur-md shadow-slate-900/10'
+                        : 'border border-white/70 bg-white/35 backdrop-blur-md shadow-slate-900/10'
+                }`}
+            >
+                <div className="h-16 relative flex items-center">
+                    <button
+                        onClick={() => setOpen(!open)}
+                        aria-expanded={open}
+                        aria-label="Toggle menu"
+                        className="md:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100"
+                    >
+                        {open ? <X size={20} /> : <Menu size={20} />}
+                    </button>
+
+                    <div className="flex items-center gap-3 md:gap-6 ml-2 md:ml-0">
+                        <Link href="/" className="text-2xl font-bold text-slate-900 tracking-tight">
+                            Sceneo
+                        </Link>
+
+                        <div className="relative group hidden md:block">
+                            <button
+                                type="button"
+                                className="inline-flex items-center gap-1 px-3 py-2 text-lg font-semibold text-slate-800 hover:text-slate-950"
+                            >
+                                Book
+                                <ChevronDown size={18} className="mt-0.5" />
+                            </button>
+                            <div className="absolute left-0 top-full pt-2 hidden group-hover:block z-40">
+                                <div className="w-52 rounded-xl border border-slate-200 bg-white shadow-lg py-2">
+                                    <Link
+                                        href="/pages/booking?bookingType=whole_studio"
+                                        className="block px-4 py-2 text-sm text-slate-700 rounded-md mx-2 hover:bg-indigo-100 hover:text-indigo-900 hover:font-semibold transition-colors"
+                                    >
+                                        Book Whole Studio
+                                    </Link>
+                                    <Link
+                                        href="/pages/booking?bookingType=slot"
+                                        className="block px-4 py-2 text-sm text-slate-700 rounded-md mx-2 hover:bg-indigo-100 hover:text-indigo-900 hover:font-semibold transition-colors"
+                                    >
+                                        Book a Slot
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <div className="ml-auto flex items-center gap-4">
                         <div className="hidden md:flex items-center gap-4">
@@ -72,14 +125,14 @@ export default function NavBar() {
                                                 <p className="text-sm text-gray-500">{user.email}</p>
                                             </div>
                                             <Link
-                                                href="/profile"
+                                                href="/pages/profile"
                                                 className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
                                                 onClick={() => setShowUserMenu(false)}
                                             >
                                                 Profile
                                             </Link>
                                             <Link
-                                                href="/bookings"
+                                                href="/pages/bookings"
                                                 className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
                                                 onClick={() => setShowUserMenu(false)}
                                             >
@@ -101,21 +154,12 @@ export default function NavBar() {
                             ) : (
                                 <Link
                                     href="/pages/Auth/login"
-                                    className="bg-black text-white px-4 py-2 rounded-full hover:bg-gray-900"
+                                    className="bg-black text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-gray-900"
                                 >
                                     Login
                                 </Link>
                             )}
                         </div>
-
-                        <button
-                            onClick={() => setOpen(!open)}
-                            aria-expanded={open}
-                            aria-label="Toggle menu"
-                            className="md:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100"
-                        >
-                            {open ? <X size={20} /> : <Menu size={20} />}
-                        </button>
                     </div>
                 </div>
 
@@ -123,8 +167,24 @@ export default function NavBar() {
                 {open && (
                     <div className="md:hidden mt-2 pb-4 border-t border-gray-100">
                         <div className="flex flex-col px-2">
+                            <p className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Book</p>
                             <Link
-                                href="/browse"
+                                href="/pages/booking?bookingType=whole_studio"
+                                onClick={() => setOpen(false)}
+                                className="block py-2 px-3 text-gray-700 rounded-md hover:bg-indigo-100 hover:text-indigo-900 hover:font-semibold transition-colors"
+                            >
+                                Book Whole Studio
+                            </Link>
+                            <Link
+                                href="/pages/booking?bookingType=slot"
+                                onClick={() => setOpen(false)}
+                                className="block py-2 px-3 text-gray-700 rounded-md hover:bg-indigo-100 hover:text-indigo-900 hover:font-semibold transition-colors"
+                            >
+                                Book a Slot
+                            </Link>
+
+                            <Link
+                                href="/pages/booking"
                                 onClick={() => setOpen(false)}
                                 className="block py-2 px-3 text-gray-700 rounded-md hover:bg-gray-50"
                             >
@@ -149,14 +209,14 @@ export default function NavBar() {
                                         </div>
                                     </div>
                                     <Link
-                                        href="/profile"
+                                        href="/pages/profile"
                                         onClick={() => setOpen(false)}
                                         className="block py-2 px-3 text-gray-700 rounded-md hover:bg-gray-50"
                                     >
                                         Profile
                                     </Link>
                                     <Link
-                                        href="/bookings"
+                                        href="/pages/bookings"
                                         onClick={() => setOpen(false)}
                                         className="block py-2 px-3 text-gray-700 rounded-md hover:bg-gray-50"
                                     >

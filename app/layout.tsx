@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
+import UserIridescenceBackground from "@/components/UserIridescenceBackground";
 import { CartProvider } from "@/lib/cartContext";
 import { BookingTypeProvider } from "@/lib/bookingContext";
 import { AuthProvider } from "@/lib/authContext";
@@ -36,8 +37,11 @@ export default function RootLayout({
           <AuthProvider>
             <BookingTypeProvider>
               <CartProvider>
-                <NavBar />
-                {children}
+                <UserIridescenceBackground />
+                <div className="relative z-10">
+                  <NavBar />
+                  {children}
+                </div>
               </CartProvider>
             </BookingTypeProvider>
           </AuthProvider>

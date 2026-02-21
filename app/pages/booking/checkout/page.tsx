@@ -6,6 +6,7 @@ import { CartItem, useCart } from '@/lib/cartContext';
 import { useAuth } from '@/lib/authContext';
 import { api } from '@/network';
 import { useToast } from '@/lib/toastContext';
+import { clearCheckoutDraft, getCheckoutDraft, setCheckoutDraft } from '@/lib/checkoutDraft';
 
 export default function BookingCheckoutPage() {
   const { items, clearCart, setIsOpen } = useCart();
@@ -149,6 +150,7 @@ export default function BookingCheckoutPage() {
       
       if (allSuccessful) {
         showToast(`Booking confirmed for ${name}.`, 'success');
+        clearCheckoutDraft();
         await clearCart();
         setIsOpen(false);
         router.push('/');
@@ -168,7 +170,7 @@ export default function BookingCheckoutPage() {
     if (!searchParams) return;
     const studioId = searchParams.get('studioId');
     if (!studioId) {
-      setDirectBookingItem(null);
+      setDirectBookingItem(getCheckoutDraft());
       return;
     }
 
@@ -188,7 +190,7 @@ export default function BookingCheckoutPage() {
     const providerNameParam = searchParams.get('provider_name');
     const parsedProviderId = providerIdParam ? Number(providerIdParam) : undefined;
 
-    setDirectBookingItem({
+    const directItem: CartItem = {
       id: `direct-${studioId}-${date}`,
       time,
       name,
@@ -200,13 +202,16 @@ export default function BookingCheckoutPage() {
       serviceProviderId: Number.isFinite(parsedProviderId) ? parsedProviderId : undefined,
       serviceType: providerTypeParam || undefined,
       serviceProviderName: providerNameParam || undefined,
-    });
+    };
+
+    setDirectBookingItem(directItem);
+    setCheckoutDraft(directItem);
   // only run when search params string changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams?.toString()]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8 sm:py-12">
+    <main className="min-h-screen bg-transparent py-8 sm:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">

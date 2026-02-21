@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useCart } from '@/lib/cartContext';
 import { api } from '@/network';
 import { useToast } from '@/lib/toastContext';
+import { getCheckoutDraft, setCheckoutDraft } from '@/lib/checkoutDraft';
 
 interface Provider {
   id: number;
@@ -41,13 +42,20 @@ export default function SelectProfessionalPage() {
   const [loading, setLoading] = useState(false);
   const [pageTitle, setPageTitle] = useState('Select Professional');
 
+  const getCheckoutUrl = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('type');
+    const query = params.toString();
+    return query ? `/pages/booking/checkout?${query}` : '/pages/booking/checkout';
+  };
+
   useEffect(() => {
     const fetchProviders = async () => {
       const type = searchParams.get('type');
       const serviceType = resolveServiceType(type);
 
       if (!serviceType) {
-        router.push('/pages/booking/checkout');
+        router.push(getCheckoutUrl());
         return;
       }
 
@@ -78,7 +86,9 @@ export default function SelectProfessionalPage() {
 
   const handleSelectProfessional = async (pro: Provider) => {
     const hasSlotItem = items.some(item => Boolean(item.timeSlotId));
+    const currentDraft = getCheckoutDraft();
     const hasDirectBookingParams = Boolean(searchParams.get('studioId') || searchParams.get('timeSlotId'));
+    const hasDraftBooking = Boolean(currentDraft?.timeSlotId);
 
     if (hasSlotItem) {
       const attached = await attachServiceToLatestSlot({
@@ -88,13 +98,25 @@ export default function SelectProfessionalPage() {
       });
 
       if (attached) {
-        router.push('/pages/booking/checkout');
+        router.push(getCheckoutUrl());
       }
       return;
     }
 
-    if (!hasDirectBookingParams) {
+    if (!hasDirectBookingParams && !hasDraftBooking) {
       showToast('Please select a slot first before choosing a provider.', 'error');
+      return;
+    }
+
+    if (!hasDirectBookingParams && hasDraftBooking && currentDraft) {
+      setCheckoutDraft({
+        ...currentDraft,
+        serviceProviderId: pro.id,
+        serviceType: pro.service_type,
+        serviceProviderName: pro.full_name,
+      });
+      showToast('Service attached to selected booking.', 'success');
+      router.push('/pages/booking/checkout');
       return;
     }
 
@@ -107,7 +129,7 @@ export default function SelectProfessionalPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 py-12">
+    <main className="min-h-screen bg-transparent py-12">
       <div className="max-w-4xl mx-auto px-6">
         <h1 className="text-3xl font-bold mb-6">{pageTitle}</h1>
 
@@ -142,7 +164,7 @@ export default function SelectProfessionalPage() {
 
         <div className="mt-8">
           <button
-            onClick={() => router.push('/pages/booking/checkout')}
+            onClick={() => router.push(getCheckoutUrl())}
             className="px-6 py-3 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors font-semibold"
           >
             Back to Checkout

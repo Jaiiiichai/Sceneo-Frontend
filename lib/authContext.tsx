@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '@/network';
+import { useToast } from '@/lib/toastContext';
 
 interface User {
   id: number;
@@ -11,14 +12,44 @@ interface User {
   avatar?: string;
 }
 
+interface ApiUserLike {
+  id?: number;
+  user_id?: number;
+  full_name?: string;
+  name?: string;
+  email?: string;
+  phone_number?: string;
+  phone?: string;
+  avatar?: string;
+}
+
+interface OAuthExchangePayload {
+  token?: string;
+  access_token?: string;
+  accessToken?: string;
+  user?: ApiUserLike;
+  data?: {
+    token?: string;
+    access_token?: string;
+    accessToken?: string;
+    user?: ApiUserLike;
+  };
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
-  loginWithFacebook: () => Promise<void>;
+  loginWithGoogle: (nextPath?: string) => Promise<void>;
+  loginWithFacebook: (nextPath?: string) => Promise<void>;
+  completeOAuthLogin: (params: {
+    provider: 'google' | 'facebook';
+    code?: string;
+    token?: string;
+    nextPath?: string;
+  }) => Promise<string>;
   signup: (name: string, email: string, password: string, phoneNumber?: string) => Promise<void>;
-  logout: () => void;
+  logout: (silent?: boolean) => void;
   getToken: () => string | null;
   isAuthenticated: () => boolean;
   fetchUser: () => Promise<void>;
@@ -26,61 +57,67 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential?: string }) => void;
+          }) => void;
+          prompt: (callback?: (notification: {
+            isNotDisplayed?: () => boolean;
+            isSkippedMoment?: () => boolean;
+            getNotDisplayedReason?: () => string;
+            getSkippedReason?: () => string;
+          }) => void) => void;
+        };
+      };
+    };
+    FB?: {
+      init: (params: {
+        appId: string;
+        cookie: boolean;
+        xfbml: boolean;
+        version: string;
+      }) => void;
+      login: (
+        callback: (response: { authResponse?: { accessToken?: string } }) => void,
+        options?: { scope?: string }
+      ) => void;
+    };
+    fbAsyncInit?: () => void;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const { showToast } = useToast();
 
-  // Load token from localStorage on mount
-  useEffect(() => {
-    const storedToken = localStorage.getItem('authToken');
-    if (storedToken) {
-      setToken(storedToken);
-      // Fetch user data if token exists
-      fetchUserOnMount();
-    }
-  }, []);
+  const mapUserFromApi = (userInfo: ApiUserLike | null | undefined, fallbackEmail?: string): User => ({
+    id: userInfo?.id || userInfo?.user_id || 0,
+    name: userInfo?.full_name || userInfo?.name || fallbackEmail?.split('@')[0] || 'User',
+    email: userInfo?.email || fallbackEmail || '',
+    phone: userInfo?.phone_number || userInfo?.phone,
+    avatar: userInfo?.avatar || `https://ui-avatars.com/api/?name=${(userInfo?.full_name || userInfo?.name || fallbackEmail?.split('@')[0] || 'User')}&background=random`
+  });
 
-  // Fetch current user data from /auth/me
-  const fetchUser = async () => {
-    const authToken = token || localStorage.getItem('authToken');
-    if (!authToken) return;
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        // If token is invalid, clear it
-        if (response.status === 401) {
-          logout();
-        }
-        return;
-      }
-
-      const userData = await response.json();
-      console.log('User data fetched:', userData);
-
-      const userInfo = userData.data || userData.user || userData;
-
-      setUser({
-        id: userInfo.id || userInfo.user_id,
-        name: userInfo.full_name || userInfo.name || userInfo.email?.split('@')[0],
-        email: userInfo.email,
-        phone: userInfo.phone_number || userInfo.phone,
-        avatar: userInfo.avatar || `https://ui-avatars.com/api/?name=${(userInfo.full_name || userInfo.name || userInfo.email?.split('@')[0])}&background=random`
-      });
-    } catch (error) {
-      console.error('Error fetching user:', error);
+  const applyAuthSession = (authToken: string, userInfo?: ApiUserLike) => {
+    localStorage.setItem('authToken', authToken);
+    setToken(authToken);
+    if (userInfo) {
+      setUser(mapUserFromApi(userInfo));
     }
   };
 
-  // Helper for initial mount fetch
-  const fetchUserOnMount = async () => {
+  const extractToken = (payload: OAuthExchangePayload | null | undefined): string | null => {
+    if (!payload) return null;
+    return payload.token || payload.access_token || payload.accessToken || payload?.data?.token || payload?.data?.access_token || payload?.data?.accessToken || null;
+  };
+
+  const fetchUserOnMount = useCallback(async () => {
     const authToken = localStorage.getItem('authToken');
     if (!authToken) return;
 
@@ -104,15 +141,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = await response.json();
       const userInfo = userData.data || userData.user || userData;
 
-      setUser({
-        id: userInfo.id || userInfo.user_id,
-        name: userInfo.full_name || userInfo.name || userInfo.email?.split('@')[0],
-        email: userInfo.email,
-        phone: userInfo.phone_number || userInfo.phone,
-        avatar: userInfo.avatar || `https://ui-avatars.com/api/?name=${(userInfo.full_name || userInfo.name || userInfo.email?.split('@')[0])}&background=random`
-      });
+      setUser(mapUserFromApi(userInfo));
     } catch (error) {
       console.error('Error fetching user on mount:', error);
+    }
+  }, []);
+
+  // Load token from localStorage on mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem('authToken');
+    if (storedToken) {
+      setToken(storedToken);
+      // Fetch user data if token exists
+      fetchUserOnMount();
+    }
+  }, [fetchUserOnMount]);
+
+  // Fetch current user data from /auth/me
+  const fetchUser = async () => {
+    const authToken = token || localStorage.getItem('authToken');
+    if (!authToken) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        // If token is invalid, clear it
+        if (response.status === 401) {
+          logout(true);
+        }
+        return;
+      }
+
+      const userData = await response.json();
+      console.log('User data fetched:', userData);
+
+      const userInfo = userData.data || userData.user || userData;
+      setUser(mapUserFromApi(userInfo));
+    } catch (error) {
+      console.error('Error fetching user:', error);
     }
   };
 
@@ -148,46 +221,264 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Store token if present in response
       if (authToken) {
-        localStorage.setItem('authToken', authToken);
-        setToken(authToken);
+        applyAuthSession(authToken, userInfo);
         console.log('✅ Token stored in localStorage:', authToken);
       } else {
         console.warn('⚠️ No token found in response! Response structure:', userData);
       }
 
-      setUser({
-        id: userInfo.id || userInfo.user_id,
-        name: userInfo.full_name || userInfo.name || email.split('@')[0],
-        email: userInfo.email || email,
-        phone: userInfo.phone_number || userInfo.phone,
-        avatar: userInfo.avatar || `https://ui-avatars.com/api/?name=${(userInfo.full_name || userInfo.name || email.split('@')[0])}&background=random`
-      });
+      setUser(mapUserFromApi(userInfo, email));
+
+      showToast('Login successful. Welcome back!', 'success');
     } catch (error) {
       console.error('Login error:', error);
       throw error; 
     }
   };
 
-  const loginWithGoogle = async () => {
-    // Simulate Google OAuth
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setUser({
-      id: 0, // Temporary ID for OAuth users
-      name: 'Google User',
-      email: 'user@gmail.com',
-      avatar: 'https://ui-avatars.com/api/?name=Google+User&background=random'
+  const getSocialAuthEndpoint = (provider: 'google' | 'facebook') => {
+    const envUrl = provider === 'google'
+      ? process.env.NEXT_PUBLIC_GOOGLE_AUTH_URL
+      : process.env.NEXT_PUBLIC_FACEBOOK_AUTH_URL;
+
+    if (envUrl) return envUrl;
+
+    const normalizedBase = API_BASE_URL.replace(/\/$/, '');
+    const hasApiSuffix = /\/api$/i.test(normalizedBase);
+    return hasApiSuffix
+      ? `${normalizedBase}/auth/${provider}`
+      : `${normalizedBase}/api/auth/${provider}`;
+  };
+
+  const ensureGoogleSdk = async () => {
+    if (typeof window === 'undefined') {
+      throw new Error('Google login is only available in the browser.');
+    }
+
+    if (window.google?.accounts?.id) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector('script[data-sceneo-google-sdk="true"]') as HTMLScriptElement | null;
+      if (existing) {
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error('Failed to load Google SDK.')), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.dataset.sceneoGoogleSdk = 'true';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Google SDK.'));
+      document.head.appendChild(script);
     });
   };
 
-  const loginWithFacebook = async () => {
-    // Simulate Facebook OAuth
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setUser({
-      id: 0, // Temporary ID for OAuth users
-      name: 'Facebook User',
-      email: 'user@facebook.com',
-      avatar: 'https://ui-avatars.com/api/?name=Facebook+User&background=random'
+  const ensureFacebookSdk = async () => {
+    if (typeof window === 'undefined') {
+      throw new Error('Facebook login is only available in the browser.');
+    }
+
+    if (window.FB) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector('script[data-sceneo-facebook-sdk="true"]') as HTMLScriptElement | null;
+      if (existing) {
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error('Failed to load Facebook SDK.')), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://connect.facebook.net/en_US/sdk.js';
+      script.async = true;
+      script.defer = true;
+      script.dataset.sceneoFacebookSdk = 'true';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Facebook SDK.'));
+      document.head.appendChild(script);
     });
+  };
+
+  const requestGoogleIdToken = async (): Promise<string> => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      throw new Error('Missing NEXT_PUBLIC_GOOGLE_CLIENT_ID in frontend env.');
+    }
+
+    await ensureGoogleSdk();
+
+    return new Promise<string>((resolve, reject) => {
+      const googleIdentity = window.google?.accounts?.id;
+      if (!googleIdentity) {
+        reject(new Error('Google SDK is not available.'));
+        return;
+      }
+
+      let settled = false;
+
+      googleIdentity.initialize({
+        client_id: clientId,
+        callback: (response) => {
+          if (settled) return;
+          const idToken = response?.credential;
+          if (!idToken) {
+            settled = true;
+            reject(new Error('Google did not return an id_token.'));
+            return;
+          }
+          settled = true;
+          resolve(idToken);
+        },
+      });
+
+      googleIdentity.prompt((notification) => {
+        if (settled) return;
+        if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+          settled = true;
+          const reason = notification?.isNotDisplayed?.()
+            ? notification?.getNotDisplayedReason?.()
+            : notification?.getSkippedReason?.();
+          reject(new Error(reason || 'Google sign-in prompt was not completed.'));
+        }
+      });
+    });
+  };
+
+  const requestFacebookAccessToken = async (): Promise<string> => {
+    const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+    if (!appId) {
+      throw new Error('Missing NEXT_PUBLIC_FACEBOOK_APP_ID in frontend env.');
+    }
+
+    await ensureFacebookSdk();
+
+    if (!window.FB) {
+      throw new Error('Facebook SDK is not available.');
+    }
+
+    window.FB.init({
+      appId,
+      cookie: true,
+      xfbml: false,
+      version: 'v20.0',
+    });
+
+    return new Promise<string>((resolve, reject) => {
+      window.FB?.login(
+        (response) => {
+          const accessToken = response?.authResponse?.accessToken;
+          if (!accessToken) {
+            reject(new Error('Facebook did not return an access_token.'));
+            return;
+          }
+          resolve(accessToken);
+        },
+        { scope: 'email,public_profile' }
+      );
+    });
+  };
+
+  const loginWithSocialToken = async (provider: 'google' | 'facebook', socialToken: string) => {
+    const endpoint = getSocialAuthEndpoint(provider);
+    const payload = provider === 'google'
+      ? { id_token: socialToken }
+      : { access_token: socialToken };
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `${provider} login failed with status ${response.status}`);
+    }
+
+    const userData = await response.json();
+    const responseData = userData?.data || userData;
+    const authToken = responseData?.token || userData?.token || userData?.access_token || userData?.accessToken;
+    const userInfo = responseData?.user || userData?.user;
+
+    if (!authToken) {
+      throw new Error('No app auth token returned by backend social login endpoint.');
+    }
+
+    applyAuthSession(authToken, userInfo);
+    if (!userInfo) {
+      await fetchUser();
+    }
+    showToast('Login successful. Welcome back!', 'success');
+  };
+
+  const loginWithGoogle = async (nextPath = '/') => {
+    void nextPath;
+    const idToken = await requestGoogleIdToken();
+    await loginWithSocialToken('google', idToken);
+  };
+
+  const loginWithFacebook = async (nextPath = '/') => {
+    void nextPath;
+    const accessToken = await requestFacebookAccessToken();
+    await loginWithSocialToken('facebook', accessToken);
+  };
+
+  const completeOAuthLogin = async ({ provider, code, token: incomingToken, nextPath }: {
+    provider: 'google' | 'facebook';
+    code?: string;
+    token?: string;
+    nextPath?: string;
+  }): Promise<string> => {
+    const safeNextPath = nextPath && nextPath.startsWith('/') ? nextPath : '/';
+    const tokenFromParams = incomingToken;
+    let resolvedToken = tokenFromParams || null;
+    let userInfo: ApiUserLike | undefined;
+
+    if (!resolvedToken && code) {
+      const exchangeEndpoint = process.env.NEXT_PUBLIC_OAUTH_CALLBACK_EXCHANGE_ENDPOINT || '/auth/oauth/callback';
+      const callbackUri = typeof window !== 'undefined' ? `${window.location.origin}/pages/Auth/oauth-callback` : '';
+
+      const response = await fetch(`${API_BASE_URL}${exchangeEndpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider,
+          code,
+          redirect_uri: callbackUri,
+        }),
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || 'OAuth authentication failed');
+      }
+
+      const payload: OAuthExchangePayload = await response.json();
+      resolvedToken = extractToken(payload);
+      userInfo = payload?.data?.user || payload?.user;
+    }
+
+    if (!resolvedToken) {
+      throw new Error('No auth token returned from OAuth flow.');
+    }
+
+    applyAuthSession(resolvedToken, userInfo);
+    if (!userInfo) {
+      await fetchUser();
+    }
+    showToast('Login successful. Welcome back!', 'success');
+    return safeNextPath;
   };
 
   const signup = async (name: string, email: string, password: string, phoneNumber?: string) => {
@@ -223,30 +514,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Store token if present in response
       if (authToken) {
-        localStorage.setItem('authToken', authToken);
-        setToken(authToken);
+        applyAuthSession(authToken, userInfo);
         console.log('✅ Token stored:', authToken);
       }
 
-      setUser({
-        id: userInfo.id || userInfo.user_id,
-        name: userInfo.full_name || name,
-        email: userInfo.email || email,
-        phone: userInfo.phone_number || userInfo.phone || phoneNumber,
-        avatar: `https://ui-avatars.com/api/?name=${name}&background=random`
-      });
+      setUser(mapUserFromApi(userInfo, email));
     } catch (error) {
       console.error('Signup error:', error);
       throw error;  // Re-throw so the calling component can handle it
     }
   };
 
-  const logout = () => {
+  const logout = (silent = false) => {
     // Clear token from localStorage
     localStorage.removeItem('authToken');
     setToken(null);
     setUser(null);
     console.log('✅ Logged out - token cleared');
+    if (!silent) {
+      showToast('Logged out successfully.', 'info');
+    }
   };
 
   // Helper function to get current token
@@ -266,6 +553,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login, 
       loginWithGoogle, 
       loginWithFacebook, 
+      completeOAuthLogin,
       signup, 
       logout,
       getToken,

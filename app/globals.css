@@ -67,3 +67,48 @@ body {
 .animate-toast-timer {
   animation: toast-timer 3s linear forwards;
 }
+
+@keyframes iridescence-orb {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(20px, -30px, 0) scale(1.08) rotate(12deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes iridescence-sheen {
+  0% {
+    opacity: 0.35;
+    transform: translateX(-6%);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translateX(6%);
+  }
+  100% {
+    opacity: 0.35;
+    transform: translateX(-6%);
+  }
+}
+
+.animate-iridescence-orb {
+  animation: iridescence-orb 10s ease-in-out infinite;
+}
+
+.animate-iridescence-orb-delay {
+  animation: iridescence-orb 13s ease-in-out infinite;
+  animation-delay: 1.2s;
+}
+
+.animate-iridescence-orb-slow {
+  animation: iridescence-orb 16s ease-in-out infinite;
+  animation-delay: 0.6s;
+}
+
+.animate-iridescence-sheen {
+  animation: iridescence-sheen 9s ease-in-out infinite;
+}

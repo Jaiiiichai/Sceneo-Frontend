@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Users, DollarSign, TrendingUp, LogOut, Menu, X, Eye, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Users, DollarSign, TrendingUp, LogOut, Eye, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/network';
 
 interface Booking {
@@ -129,12 +129,13 @@ export default function AdminDashboard() {
   const [admin, setAdmin] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'availability' | 'providers'>('overview');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [dateFilter, setDateFilter] = useState<string>(''); // Empty string means show all dates
   const [nameFilter, setNameFilter] = useState<string>('');
   const [confirmationToast, setConfirmationToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({ show: false, message: '', type: 'success' });
   const [confirmModal, setConfirmModal] = useState<{ show: boolean; date: string; action: 'open' | 'close'; formattedDate: string }>({ show: false, date: '', action: 'open', formattedDate: '' });
+  const [statusChangeModal, setStatusChangeModal] = useState<{ show: boolean; bookingId: string; customerName: string; currentStatus: Booking['status']; newStatus: Booking['status'] } | null>(null);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   // Fetch bookings from API
@@ -365,16 +366,50 @@ export default function AdminDashboard() {
     }, 3000);
   };
 
-  const updateBookingStatus = (bookingId: string, newStatus: 'pending' | 'confirmed' | 'completed' | 'cancelled') => {
-    setBookings(bookings.map(booking => 
-      booking.id === bookingId ? { ...booking, status: newStatus } : booking
-    ));
-    
-    if (selectedBooking && selectedBooking.id === bookingId) {
-      setSelectedBooking({ ...selectedBooking, status: newStatus });
+  const requestBookingStatusChange = (booking: Booking, newStatus: Booking['status']) => {
+    if (booking.status === newStatus) return;
+
+    setStatusChangeModal({
+      show: true,
+      bookingId: booking.id,
+      customerName: booking.customerName,
+      currentStatus: booking.status,
+      newStatus,
+    });
+  };
+
+  const cancelStatusChange = () => {
+    setStatusChangeModal(null);
+  };
+
+  const confirmStatusChange = async () => {
+    if (!statusChangeModal) return;
+
+    try {
+      setStatusUpdating(true);
+      await api.put(`/bookings/${statusChangeModal.bookingId}`, {
+        booking_status: statusChangeModal.newStatus,
+      }, { requiresAuth: true });
+
+      setBookings((prev) => prev.map((booking) => (
+        booking.id === statusChangeModal.bookingId
+          ? { ...booking, status: statusChangeModal.newStatus }
+          : booking
+      )));
+
+      setSelectedBooking((prev) => {
+        if (!prev || prev.id !== statusChangeModal.bookingId) return prev;
+        return { ...prev, status: statusChangeModal.newStatus };
+      });
+
+      showConfirmation(`Booking status updated to ${statusChangeModal.newStatus.toUpperCase()}`, 'success');
+      setStatusChangeModal(null);
+    } catch (error) {
+      console.error('Error updating booking status:', error);
+      showConfirmation('Failed to update booking status.', 'error');
+    } finally {
+      setStatusUpdating(false);
     }
-    
-    showConfirmation(`Booking status updated to ${newStatus.toUpperCase()}`, 'success');
   };
 
   const goToPreviousMonth = () => {
@@ -425,26 +460,34 @@ export default function AdminDashboard() {
     </div>;
   }
 
+  const adminInitials = (admin?.name || admin?.email || 'A')
+    .split(' ')
+    .map((part: string) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-black text-white border-b-2 border-gray-800 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-50 bg-transparent px-4 sm:px-6 lg:px-8 pt-4">
+        <div className="mx-auto w-full max-w-6xl rounded-2xl border border-white/70 bg-white/35 backdrop-blur-md shadow-lg shadow-slate-900/10 px-4 sm:px-6">
           <div className="h-16 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2 hover:bg-gray-800 rounded-lg"
-              >
-                {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
-              <h1 className="text-2xl font-black">SCENEO ADMIN</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-400 hidden sm:block">{admin.email}</span>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">SCENEO ADMIN</h1>
+
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:block text-right">
+                <p className="text-xs text-slate-500">Admin</p>
+                <p className="text-sm font-medium text-slate-800">{admin.email}</p>
+              </div>
+
+              <div className="w-10 h-10 rounded-full bg-emerald-400 border-2 border-emerald-200 text-slate-900 font-semibold flex items-center justify-center">
+                {adminInitials}
+              </div>
+
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-semibold hover:bg-gray-200 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 font-semibold hover:bg-slate-100 transition-colors"
               >
                 <LogOut size={18} />
                 <span className="hidden sm:inline">Logout</span>
@@ -840,52 +883,16 @@ export default function AdminDashboard() {
                       </span>
                       
                       <p className="text-xs font-semibold text-gray-600 mt-2 mb-1">Change Status:</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => updateBookingStatus(selectedBooking.id, 'pending')}
-                          disabled={selectedBooking.status === 'pending'}
-                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
-                            selectedBooking.status === 'pending'
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                          }`}
-                        >
-                          Pending
-                        </button>
-                        <button
-                          onClick={() => updateBookingStatus(selectedBooking.id, 'confirmed')}
-                          disabled={selectedBooking.status === 'confirmed'}
-                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
-                            selectedBooking.status === 'confirmed'
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-green-100 text-green-700 hover:bg-green-200'
-                          }`}
-                        >
-                          Confirmed
-                        </button>
-                        <button
-                          onClick={() => updateBookingStatus(selectedBooking.id, 'completed')}
-                          disabled={selectedBooking.status === 'completed'}
-                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
-                            selectedBooking.status === 'completed'
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                          }`}
-                        >
-                          Completed
-                        </button>
-                        <button
-                          onClick={() => updateBookingStatus(selectedBooking.id, 'cancelled')}
-                          disabled={selectedBooking.status === 'cancelled'}
-                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
-                            selectedBooking.status === 'cancelled'
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-red-100 text-red-700 hover:bg-red-200'
-                          }`}
-                        >
-                          Cancelled
-                        </button>
-                      </div>
+                      <select
+                        value={selectedBooking.status}
+                        onChange={(event) => requestBookingStatusChange(selectedBooking, event.target.value as Booking['status'])}
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -1179,6 +1186,36 @@ export default function AdminDashboard() {
               <XCircle size={20} className="text-red-600" />
             )}
             <p className="font-bold text-sm">{confirmationToast.message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Status Change Confirmation Modal */}
+      {statusChangeModal?.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-xl p-6 border-2 border-gray-900 max-w-md w-full mx-4 animate-slide-up">
+            <h3 className="text-xl font-black text-gray-900 mb-2">Confirm Status Update</h3>
+            <p className="text-gray-600 mb-6">
+              Change booking status for <span className="font-bold">{statusChangeModal.customerName}</span> from{' '}
+              <span className="font-bold uppercase">{statusChangeModal.currentStatus}</span> to{' '}
+              <span className="font-bold uppercase">{statusChangeModal.newStatus}</span>?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={cancelStatusChange}
+                disabled={statusUpdating}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmStatusChange}
+                disabled={statusUpdating}
+                className="flex-1 px-4 py-3 bg-black text-white rounded-lg font-bold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {statusUpdating ? 'Updating...' : 'Confirm'}
+              </button>
+            </div>
           </div>
         </div>
       )}

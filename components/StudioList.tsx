@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/lib/cartContext';
 import { BookingType } from '@/lib/bookingContext'; // Import BookingType from the new context
+import { setCheckoutDraft } from '@/lib/checkoutDraft';
 import { getSlotsForDate, filterSlotsByBookingType, isSlotTooClose } from '@/lib/timeSlots';
 
 interface Studio {
@@ -209,15 +210,18 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
               <button
                 onClick={() => {
                   if (!isBookingDisabled(studio.status)) {
-                    const params = new URLSearchParams();
-                    params.set('studioId', studio.id);
-                    params.set('time', studio.time);
-                    params.set('name', studio.name);
-                    params.set('price', studio.price);
-                    params.set('duration', studio.duration);
-                    params.set('bookingType', bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots');
-                    if (selectedDate) params.set('date', formatLocalDate(selectedDate));
-                    router.push(`/pages/booking/checkout?${params.toString()}`);
+                    const formattedDate = selectedDate ? formatLocalDate(selectedDate) : formatLocalDate(new Date());
+                    setCheckoutDraft({
+                      id: `direct-${studio.id}-${formattedDate}`,
+                      time: studio.time,
+                      name: studio.name,
+                      price: studio.price,
+                      duration: studio.duration,
+                      bookingDate: formattedDate,
+                      timeSlotId: studio.id,
+                      bookingType: bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots',
+                    });
+                    router.push('/pages/booking/checkout');
                   }
                 }}
                 disabled={isBookingDisabled(studio.status)}
@@ -292,16 +296,18 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
             <button
               onClick={() => {
                 if (!isBookingDisabled(studio.status)) {
-                  // Navigate to checkout page with studio data in query params
-                  const params = new URLSearchParams();
-                  params.set('studioId', studio.id);
-                  params.set('time', studio.time);
-                  params.set('name', studio.name);
-                  params.set('price', studio.price);
-                  params.set('duration', studio.duration);
-                  params.set('bookingType', bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots');
-                  if (selectedDate) params.set('date', formatLocalDate(selectedDate));
-                  router.push(`/pages/booking/checkout?${params.toString()}`);
+                  const formattedDate = selectedDate ? formatLocalDate(selectedDate) : formatLocalDate(new Date());
+                  setCheckoutDraft({
+                    id: `direct-${studio.id}-${formattedDate}`,
+                    time: studio.time,
+                    name: studio.name,
+                    price: studio.price,
+                    duration: studio.duration,
+                    bookingDate: formattedDate,
+                    timeSlotId: studio.id,
+                    bookingType: bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots',
+                  });
+                  router.push('/pages/booking/checkout');
                 }
               }}
               disabled={isBookingDisabled(studio.status)}
