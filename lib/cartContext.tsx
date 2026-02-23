@@ -26,6 +26,7 @@ export interface CartItem {
 interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => Promise<void>;
+   updateItem: (updatedItem: CartItem) => void;
   attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string }) => Promise<boolean>;
   removeItem: (id: string) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -47,6 +48,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const nextPath = `${window.location.pathname}${window.location.search}`;
     window.location.href = `/pages/Auth/login?next=${encodeURIComponent(nextPath)}`;
   }, []);
+
+  const updateItem = (updatedItem: CartItem) => {
+  setItems(prev => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
+};
 
   const mapApiItemToCartItem = useCallback((item: CartItemResponse): CartItem => {
     const displayTime = item.time_slots?.display_time || item.time_slot_id;
@@ -214,7 +219,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <CartContext.Provider value={{ items, addItem, attachServiceToLatestSlot, removeItem, clearCart, updateItemQuantity, isOpen, setIsOpen }}>
+    <CartContext.Provider value={{ items, addItem, updateItem, attachServiceToLatestSlot, removeItem, clearCart, updateItemQuantity, isOpen, setIsOpen }}>
       {children}
     </CartContext.Provider>
   );

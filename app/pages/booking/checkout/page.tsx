@@ -11,7 +11,7 @@ import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
 import { api } from '@/network';
 
 export default function BookingCheckoutPage() {
-  const { items, setIsOpen } = useCart();
+  const { items, setIsOpen,updateItem } = useCart();
   const { user, fetchUser, isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
@@ -328,6 +328,30 @@ export default function BookingCheckoutPage() {
     setDirectBookingItem(directItem);
     setCheckoutDraft(directItem);
   }, []);
+  const handleRemoveProvider = (itemId: string) => {
+  const updatedItem = checkoutItems.find(it => it.id === itemId);
+  if (!updatedItem) return;
+
+  const cleaned: CartItem = {
+    ...updatedItem,
+    serviceProviderId: undefined,
+    serviceType: undefined,
+    serviceProviderName: undefined,
+    serviceProviderRate: undefined,
+  };
+
+  // If it came from the cart, update cart items
+  if (items.length > 0) {
+    // You'll need updateItem from your cart context — see note below
+    updateItem(cleaned);
+  } else {
+    // Direct booking / draft flow
+    setDirectBookingItem(cleaned);
+    setCheckoutDraft(cleaned);
+  }
+
+  showToast('Service provider removed.', 'info');
+};
 
   return (
     <main className="min-h-screen bg-transparent py-8 sm:py-12">
@@ -462,23 +486,40 @@ export default function BookingCheckoutPage() {
                 ) : (
                   checkoutItems.map((it) => (
                     <div key={it.id} className="bg-white/10 backdrop-blur rounded-xl p-4 border border-white/20">
-                      <div className="flex items-start gap-3">
-                        <div className="text-2xl">📸</div>
-                        <div className="flex-grow">
-                          <div className="font-semibold text-white">{it.name}</div>
-                          <div className="text-sm text-gray-300 mt-1">{it.time} • {it.duration}</div>
-                          <div className="text-sm text-gray-400 mt-1">
-                            {it.bookingDate ? new Date(it.bookingDate + 'T00:00:00').toLocaleDateString() : 'No date selected'}
-                          </div>
-                          {it.serviceProviderName && (
-                            <div className="text-sm text-gray-300 mt-1">
-                              Service: {it.serviceProviderName}
-                            </div>
-                          )}
-                        </div>
-                        <div className="font-bold text-white">{it.price}</div>
-                      </div>
-                    </div>
+  <div className="flex items-start gap-3">
+    <div className="text-2xl flex-shrink-0">📸</div>
+    <div className="flex-grow min-w-0">
+      <div className="flex items-start justify-between gap-2">
+        <div className="font-semibold text-white text-sm leading-tight">{it.name}</div>
+        <div className="font-bold text-white text-sm flex-shrink-0">{it.price}</div>
+      </div>
+      <div className="text-sm text-gray-300 mt-1">{it.time} • {it.duration}</div>
+      <div className="text-sm text-gray-400 mt-1">
+        {it.bookingDate ? new Date(it.bookingDate + 'T00:00:00').toLocaleDateString() : 'No date selected'}
+      </div>
+      {it.serviceProviderName && (
+        <div className="mt-2 pt-2 border-t border-white/10 flex items-start justify-between gap-2">
+          <div>
+            <div className="text-xs text-gray-400">
+              {it.serviceType === 'photography' ? 'Photographer'
+                : it.serviceType === 'editor' ? 'Editor'
+                : it.serviceType === 'make_up_artist' ? 'Make-up Artist'
+                : it.serviceType}
+            </div>
+            <div className="text-sm text-gray-200">{it.serviceProviderName}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleRemoveProvider(it.id)}
+            className="text-xs text-red-400 hover:text-red-300 underline whitespace-nowrap flex-shrink-0 mt-1"
+          >
+            Remove
+          </button>
+        </div>
+      )}
+    </div>
+  </div>
+</div>
                   ))
                 )}
               </div>

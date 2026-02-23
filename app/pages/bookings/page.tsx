@@ -11,7 +11,7 @@ import { useToast } from '@/lib/toastContext';
 import { xenditService } from '@/network/services/xenditService';
 import { clearPendingPaymentBooking, getPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
 
-type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+type BookingStatus = 'pending' | 'paid' | 'completed' | 'cancelled';
 
 type ApiBooking = {
   id: number | string;
@@ -61,13 +61,13 @@ const formatTime = (value?: string) => {
 
 const statusClasses: Record<BookingStatus, string> = {
   pending: 'bg-amber-100 text-amber-800 border-amber-200',
-  confirmed: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  paid: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   completed: 'bg-blue-100 text-blue-800 border-blue-200',
   cancelled: 'bg-rose-100 text-rose-800 border-rose-200',
 };
 
 const normalizeStatus = (status?: string): BookingStatus => {
-  if (status === 'pending' || status === 'confirmed' || status === 'completed' || status === 'cancelled') {
+  if (status === 'pending' || status === 'paid' || status === 'completed' || status === 'cancelled') {
     return status;
   }
   return 'pending';
@@ -288,7 +288,7 @@ export default function BookingsHistoryPage() {
   })();
 
   const requestCancelBooking = (booking: HistoryBooking) => {
-    if (booking.status !== 'pending' && booking.status !== 'confirmed') {
+    if (booking.status !== 'pending' && booking.status !== 'paid') {
       showToast('Only pending or confirmed bookings can be cancelled.', 'error');
       return;
     }
@@ -460,7 +460,7 @@ export default function BookingsHistoryPage() {
                   </p>
                 )}
 
-                {(booking.status === 'pending' || booking.status === 'confirmed') && !isPastBooking(booking) && (
+                {(booking.status === 'pending' || booking.status === 'paid') && !isPastBooking(booking) && (
                   <div className="mt-5 pt-4 border-t border-slate-200 flex items-center justify-between gap-3">
                     <p className="text-xs text-slate-500">
                       Cancellation allowed only up to 3 hours before booking time.
@@ -475,7 +475,7 @@ export default function BookingsHistoryPage() {
                   </div>
                 )}
 
-                {(booking.status === 'pending' || booking.status === 'confirmed') && isPastBooking(booking) && (
+                {(booking.status === 'pending' || booking.status === 'paid') && isPastBooking(booking) && (
                   <div className="mt-5 pt-4 border-t border-slate-200">
                     <p className="text-xs text-slate-500">
                       This booking has already passed.
