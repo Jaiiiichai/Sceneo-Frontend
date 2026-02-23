@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation';
 import { Calendar, Clock3, Receipt, RefreshCw } from 'lucide-react';
 import { api } from '@/network';
 import { useAuth } from '@/lib/authContext';
+import { useCart } from '@/lib/cartContext';
 import { useToast } from '@/lib/toastContext';
+import { xenditService } from '@/network/services/xenditService';
+import { clearPendingPaymentBooking, getPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
 
 type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
 
@@ -92,6 +95,7 @@ const toHistoryBooking = (booking: ApiBooking): HistoryBooking => {
 export default function BookingsHistoryPage() {
   const router = useRouter();
   const { user, isAuthenticated, fetchUser } = useAuth();
+  const { clearCart } = useCart();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,6 +104,9 @@ export default function BookingsHistoryPage() {
   const [timelineFilter, setTimelineFilter] = useState<'upcoming' | 'past'>('upcoming');
   const [cancelModal, setCancelModal] = useState<HistoryBooking | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [trackedPaymentInvoiceId, setTrackedPaymentInvoiceId] = useState<string | null>(null);
+  const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState(false);
+  const [paymentPolling, setPaymentPolling] = useState(false);
 
   const parseBookingDateTime = (booking: HistoryBooking): Date | null => {
     if (!booking.rawDate || !booking.rawTime) return null;
@@ -176,6 +183,97 @@ export default function BookingsHistoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const invoiceId = params.get('invoiceId');
+    const payment = params.get('payment');
+
+    if (payment === 'processing' && invoiceId) {
+      setTrackedPaymentInvoiceId(invoiceId);
+      showToast('Waiting for payment confirmation...', 'info');
+      return;
+    }
+
+    const pendingDraft = getPendingPaymentBooking();
+    if (pendingDraft?.invoiceId) {
+      setTrackedPaymentInvoiceId(String(pendingDraft.invoiceId));
+      showToast('Resuming payment confirmation...', 'info');
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    if (!trackedPaymentInvoiceId || !isAuthenticated()) return;
+
+    let cancelled = false;
+    let pollTimeoutId: number | null = null;
+
+    const pollPaymentStatus = async () => {
+      if (cancelled) return;
+      setPaymentPolling(true);
+
+      try {
+        const latestInvoice = await xenditService.getInvoice(trackedPaymentInvoiceId);
+        const paymentStatus = String(latestInvoice.status || '').toUpperCase();
+        const isPaid = paymentStatus === 'PAID' || paymentStatus === 'SETTLED' || paymentStatus === 'SUCCEEDED';
+        const isFinalUnpaid = paymentStatus === 'EXPIRED' || paymentStatus === 'FAILED';
+
+        if (isPaid) {
+          if (!cancelled) {
+            clearPendingPaymentBooking();
+            await clearCart();
+            await loadBookings(true);
+            setShowPaymentSuccessModal(true);
+            setTrackedPaymentInvoiceId(null);
+            setPaymentPolling(false);
+            router.replace('/pages/bookings');
+          }
+          return;
+        }
+
+        if (isFinalUnpaid) {
+          if (!cancelled) {
+            setPaymentPolling(false);
+            setTrackedPaymentInvoiceId(null);
+            clearPendingPaymentBooking();
+            showToast('Payment was not completed. Please try again.', 'error');
+            router.replace('/pages/bookings');
+          }
+          return;
+        }
+      } catch (pollError) {
+        console.error('Failed to poll payment status:', pollError);
+      }
+
+      pollTimeoutId = window.setTimeout(pollPaymentStatus, 5000);
+    };
+
+    const startPolling = async () => {
+      if (!isAuthenticated()) {
+        try {
+          await fetchUser();
+        } catch {
+          // Keep polling flow resilient while auth context initializes
+        }
+      }
+
+        if (!cancelled) {
+          pollPaymentStatus();
+        }
+    };
+
+    startPolling();
+
+    return () => {
+      cancelled = true;
+      if (pollTimeoutId !== null) {
+        window.clearTimeout(pollTimeoutId);
+      }
+      setPaymentPolling(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackedPaymentInvoiceId, isAuthenticated, fetchUser, router]);
+
   const filteredBookings = (() => {
     const timelineFiltered = bookings.filter((booking) => {
       const past = isPastBooking(booking);
@@ -240,6 +338,11 @@ export default function BookingsHistoryPage() {
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-slate-900">My Booking History</h1>
             <p className="text-slate-600 mt-2">Track all your past and upcoming studio bookings.</p>
+            {paymentPolling && (
+              <p className="text-sm text-blue-700 mt-2">
+                Checking payment status for your latest booking...
+              </p>
+            )}
           </div>
 
           <button
@@ -409,6 +512,24 @@ export default function BookingsHistoryPage() {
                   {cancelling ? 'Cancelling...' : 'Confirm Cancel'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {showPaymentSuccessModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="bg-white rounded-xl p-6 border border-slate-200 max-w-md w-full mx-4">
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Payment Successful</h3>
+              <p className="text-slate-600 mb-6">
+                Your booking is done and payment was received successfully.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPaymentSuccessModal(false)}
+                className="w-full px-4 py-3 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800"
+              >
+                Great
+              </button>
             </div>
           </div>
         )}

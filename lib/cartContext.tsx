@@ -20,6 +20,7 @@ export interface CartItem {
   serviceProviderId?: number;
   serviceType?: string;
   serviceProviderName?: string;
+  serviceProviderRate?: number;
 }
 
 interface CartContextType {

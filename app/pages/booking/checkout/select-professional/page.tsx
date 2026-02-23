@@ -92,49 +92,82 @@ export default function SelectProfessionalPage() {
   }, [router, showToast]);
 
   const handleSelectProfessional = async (pro: Provider) => {
-    const searchParams = getSearchParams();
-    const hasSlotItem = items.some(item => Boolean(item.timeSlotId));
-    const currentDraft = getCheckoutDraft();
-    const hasDirectBookingParams = Boolean(searchParams.get('studioId') || searchParams.get('timeSlotId'));
-    const hasDraftBooking = Boolean(currentDraft?.timeSlotId);
+  const searchParams = getSearchParams();
+  const hasSlotItem = items.some(item => Boolean(item.timeSlotId));
+  const currentDraft = getCheckoutDraft();
+  const hasDirectBookingParams = Boolean(
+    searchParams.get('studioId') || searchParams.get('timeSlotId')
+  );
+  const hasDraftBooking = Boolean(currentDraft?.timeSlotId);
 
-    if (hasSlotItem) {
-      const attached = await attachServiceToLatestSlot({
-        providerId: pro.id,
-        serviceType: pro.service_type,
-        providerName: pro.full_name,
-      });
+  // Case 1: Slot already in cart
+  if (hasSlotItem) {
+    const latestSlot = items.find(item => Boolean(item.timeSlotId));
+    if (!latestSlot) return;
 
-      if (attached) {
-        router.push(getCheckoutUrl());
-      }
-      return;
+    const basePrice = parseFloat(
+      latestSlot.price.replace(/[^0-9.]/g, '')
+    );
+
+    const newTotal = basePrice + pro.rate;
+
+    const attached = await attachServiceToLatestSlot({
+  providerId: pro.id,
+  serviceType: pro.service_type,
+  providerName: pro.full_name,
+  providerRate: pro.rate,        // ADD
+  updatedPrice: latestSlot.price, // keep original price, don't add rate
+});
+
+    if (attached) {
+      showToast(`${pro.full_name} added (+₱${pro.rate})`, 'success');
+      router.push(getCheckoutUrl());
     }
 
-    if (!hasDirectBookingParams && !hasDraftBooking) {
-      showToast('Please select a slot first before choosing a provider.', 'error');
-      return;
-    }
+    return;
+  }
 
-    if (!hasDirectBookingParams && hasDraftBooking && currentDraft) {
-      setCheckoutDraft({
-        ...currentDraft,
-        serviceProviderId: pro.id,
-        serviceType: pro.service_type,
-        serviceProviderName: pro.full_name,
-      });
-      showToast('Service attached to selected booking.', 'success');
-      router.push('/pages/booking/checkout');
-      return;
-    }
+  // Case 2: No slot selected
+  if (!hasDirectBookingParams && !hasDraftBooking) {
+    showToast('Please select a slot first before choosing a provider.', 'error');
+    return;
+  }
 
-    const params = getSearchParams();
-    params.delete('type');
-    params.set('provider_id', String(pro.id));
-    params.set('provider_type', pro.service_type);
-    params.set('provider_name', pro.full_name);
-    router.push(`/pages/booking/checkout?${params.toString()}`);
-  };
+  // Case 3: Draft booking flow
+  if (!hasDirectBookingParams && hasDraftBooking && currentDraft) {
+    const basePrice = parseFloat(
+      currentDraft.price.replace(/[^0-9.]/g, '')
+    );
+
+    const newTotal = basePrice + pro.rate;
+
+    setCheckoutDraft({
+  ...currentDraft,
+  serviceProviderId: pro.id,
+  serviceType: pro.service_type,
+  serviceProviderName: pro.full_name,
+  serviceProviderRate: pro.rate, // ADD - store separately
+  // REMOVE the price: `₱${newTotal}` line - keep original price
+});
+
+// Case 4 - Direct URL, add this param:
+
+
+    showToast(`${pro.full_name} added (+₱${pro.rate})`, 'success');
+    router.push('/pages/booking/checkout');
+    return;
+  }
+
+  // Case 4: Direct URL booking
+  const params = getSearchParams();
+  params.delete('type');
+  params.set('provider_id', String(pro.id));
+  params.set('provider_type', pro.service_type);
+  params.set('provider_name', pro.full_name);
+  params.set('provider_rate', String(pro.rate));
+
+  router.push(`/pages/booking/checkout?${params.toString()}`);
+};
 
   return (
     <main className="min-h-screen bg-transparent py-12">

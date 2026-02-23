@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { CartItem, useCart } from '@/lib/cartContext';
 import { useAuth } from '@/lib/authContext';
-import { api } from '@/network';
 import { useToast } from '@/lib/toastContext';
 import { clearCheckoutDraft, getCheckoutDraft, setCheckoutDraft } from '@/lib/checkoutDraft';
+import { xenditService } from '@/network/services/xenditService';
+import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
+import { api } from '@/network';
 
 export default function BookingCheckoutPage() {
-  const { items, clearCart, setIsOpen } = useCart();
+  const { items, setIsOpen } = useCart();
   const { user, fetchUser, isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
@@ -20,6 +22,7 @@ export default function BookingCheckoutPage() {
   const [acceptPolicy, setAcceptPolicy] = useState(true);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submissionStage, setSubmissionStage] = useState<'idle' | 'preparing' | 'payment'>('idle');
   const [directBookingItem, setDirectBookingItem] = useState<CartItem | null>(null);
 
   const normalizePhilippinePhone = (input: string): string | null => {
@@ -132,6 +135,11 @@ export default function BookingCheckoutPage() {
       return;
     }
 
+    if (checkoutItems.length > 1) {
+      showToast('Please checkout one booking at a time while payment is enabled.', 'error');
+      return;
+    }
+
     const normalizedPhone = normalizePhilippinePhone(phone);
     if (!normalizedPhone) {
       showToast('Please enter a valid Philippine mobile number (e.g., 09171234567 or +639171234567).', 'error');
@@ -151,6 +159,7 @@ export default function BookingCheckoutPage() {
     }
 
     setSubmitting(true);
+    setSubmissionStage('preparing');
 
     try {
       // Extract UUID from potentially concatenated ID (cart adds timestamp)
@@ -160,71 +169,119 @@ export default function BookingCheckoutPage() {
         return uuidMatch ? uuidMatch[0] : id;
       };
 
-      // Create bookings for each checkout item
-      const bookingPromises = checkoutItems.map(async (item) => {
-        // Parse time to HH:MM:SS format
-        const parseTime = (timeStr: string): string => {
-          // If already in HH:MM:SS format, return as is
-          if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) return timeStr;
-          
-          // Parse from "7:00 AM" format
-          const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-          if (match) {
-            let hours = parseInt(match[1]);
-            const minutes = match[2];
-            const meridiem = match[3].toUpperCase();
-            
-            if (meridiem === 'PM' && hours < 12) hours += 12;
-            if (meridiem === 'AM' && hours === 12) hours = 0;
-            
-            return `${String(hours).padStart(2, '0')}:${minutes}:00`;
-          }
-          
-          return '09:00:00'; // Default fallback
-        };
+      const item = checkoutItems[0];
 
-        const bookingData = {
-          user_id: user?.id || 0,
-          customer_name: name,
-          customer_email: email,
-          customer_phone: normalizedPhone,
-          booking_type: item.bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots',
-          booking_date: item.bookingDate || formatLocalDate(new Date()),
-          booking_time: parseTime(item.time),
-          booking_status: 'confirmed',
-          booking_price: parseFloat(item.price.replace(/[^0-9.]/g, '')),
-          service_type: item.serviceType || null,
-          service_provider_id: item.serviceProviderId ?? null,
-          time_slot_id: item.timeSlotId || extractUUID(item.id)
-        };
+      const parseTime = (timeStr: string): string => {
+        if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) return timeStr;
 
-        console.log('Creating booking:', bookingData);
-        console.log('Booking date from cart item:', item.bookingDate);
-        console.log('Final booking date:', bookingData.booking_date);
-        return api.post('/bookings', bookingData, { requiresAuth: true });
+        const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+        if (match) {
+          let hours = parseInt(match[1]);
+          const minutes = match[2];
+          const meridiem = match[3].toUpperCase();
+
+          if (meridiem === 'PM' && hours < 12) hours += 12;
+          if (meridiem === 'AM' && hours === 12) hours = 0;
+
+          return `${String(hours).padStart(2, '0')}:${minutes}:00`;
+        }
+
+        return '09:00:00';
+      };
+
+      const toLocalPhilippinePhone = (value: string): string => {
+        const digits = value.replace(/\D/g, '');
+        if (/^639\d{9}$/.test(digits)) {
+          return `0${digits.slice(2)}`;
+        }
+        if (/^09\d{9}$/.test(digits)) {
+          return digits;
+        }
+        return value;
+      };
+
+      const normalizeServiceType = (serviceType?: string): string | null => {
+        if (!serviceType) return null;
+        if (serviceType === 'photography') return 'photo';
+        if (serviceType === 'make_up_artist') return 'makeup_artist';
+        return serviceType;
+      };
+
+      const bookingPrice = parseFloat(item.price.replace(/[^0-9.]/g, ''));
+
+      const fallbackTimeSlotId = item.timeSlotId || extractUUID(item.id);
+      if (!fallbackTimeSlotId) {
+        showToast('Please select a valid booking slot before payment.', 'error');
+        return;
+      }
+
+      const bookingPayload = {
+        user_id: user?.id || 0,
+        customer_name: name,
+        customer_email: email,
+        customer_phone: toLocalPhilippinePhone(normalizedPhone),
+        booking_type: (item.bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots') as 'whole_studio' | 'professional_slots',
+        booking_date: item.bookingDate || formatLocalDate(new Date()),
+        booking_time: parseTime(item.time),
+        booking_status: 'pending' as const,
+        booking_price: bookingPrice,
+        service_type: normalizeServiceType(item.serviceType),
+        service_provider_id: item.serviceProviderId ?? null,
+        time_slot_id: fallbackTimeSlotId,
+      };
+
+      setSubmissionStage('payment');
+      type CreatedBookingResponse = {
+        id?: number | string;
+        booking_id?: number | string;
+        data?: {
+          id?: number | string;
+          booking_id?: number | string;
+        };
+      };
+
+      const createdBooking = await api.post<CreatedBookingResponse>('/bookings', bookingPayload, { requiresAuth: true });
+      const bookingIdCandidate =
+        createdBooking?.id ??
+        createdBooking?.booking_id ??
+        createdBooking?.data?.id ??
+        createdBooking?.data?.booking_id;
+
+      if (bookingIdCandidate == null || bookingIdCandidate === '') {
+        showToast('Booking was created but booking ID is missing from response.', 'error');
+        return;
+      }
+
+      const invoice = await xenditService.createInvoice(bookingIdCandidate);
+
+      if (!invoice?.invoice_url || !invoice?.id) {
+        showToast('Unable to initialize payment. Please try again.', 'error');
+        return;
+      }
+
+      let paymentTab: Window | null = null;
+      if (typeof window !== 'undefined') {
+        window.location.href = invoice.invoice_url;
+      }
+
+      setPendingPaymentBooking({
+        invoiceId: String(invoice.id),
+        invoiceUrl: invoice.invoice_url,
+        bookingId: String(bookingIdCandidate),
+        createdAt: new Date().toISOString(),
       });
 
-      const results = await Promise.all(bookingPromises);
-      console.log('Booking results:', results);
-      
-      // Check if all bookings were successful
-      const allSuccessful = results.every(result => result.success);
-      
-      if (allSuccessful) {
-        showToast(`Booking confirmed for ${name}.`, 'success');
-        clearCheckoutDraft();
-        await clearCart();
-        setIsOpen(false);
-        router.push('/');
-      } else {
-        const failedCount = results.filter(r => !r.success).length;
-        showToast(`${failedCount} booking(s) failed. Please try again.`, 'error');
-      }
+      showToast('Payment opened. Booking is saved as pending and waiting for payment.', 'info');
+      clearCheckoutDraft();
+      setIsOpen(false);
+      router.push(`/pages/bookings?payment=processing&invoiceId=${encodeURIComponent(String(invoice.id))}&bookingId=${encodeURIComponent(String(bookingIdCandidate))}`);
     } catch (error) {
       console.error('Booking error:', error);
-      showToast('An error occurred while creating your booking. Please try again.', 'error');
+      const message = error instanceof Error ? error.message : 'An error occurred while creating your booking. Please try again.';
+      showToast(message, 'error');
     } finally {
       setSubmitting(false);
+      setSubmissionStage('idle');
     }
   };
 
@@ -251,6 +308,7 @@ export default function BookingCheckoutPage() {
     const providerTypeParam = searchParams.get('provider_type');
     const providerNameParam = searchParams.get('provider_name');
     const parsedProviderId = providerIdParam ? Number(providerIdParam) : undefined;
+    const providerRateParam = searchParams.get('provider_rate');
 
     const directItem: CartItem = {
       id: `direct-${studioId}-${date}`,
@@ -264,6 +322,7 @@ export default function BookingCheckoutPage() {
       serviceProviderId: Number.isFinite(parsedProviderId) ? parsedProviderId : undefined,
       serviceType: providerTypeParam || undefined,
       serviceProviderName: providerNameParam || undefined,
+      serviceProviderRate: providerRateParam ? Number(providerRateParam) : undefined
     };
 
     setDirectBookingItem(directItem);
@@ -425,38 +484,60 @@ export default function BookingCheckoutPage() {
               </div>
 
               {checkoutItems.length > 0 && (
-                <>
-                  <div className="border-t border-white/20 pt-4 space-y-3">
-                    <div className="flex justify-between text-gray-300">
-                      <span>Subtotal</span>
-                      <span>₱{total.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-300">
-                      <span>Tax</span>
-                      <span>₱0.00</span>
-                    </div>
-                    <div className="flex justify-between text-2xl font-bold text-white pt-2 border-t border-white/20">
-                      <span>Total</span>
-                      <span>₱{total.toFixed(2)}</span>
-                    </div>
-                  </div>
+  <>
+    <div className="border-t border-white/20 pt-4 space-y-3">
+      <div className="flex justify-between text-gray-300">
+        <span>Booking Fee</span>
+        <span>
+          ₱{checkoutItems.reduce((sum, it) => {
+            return sum + parseFloat(it.price.replace(/[^0-9.]/g, ''));
+          }, 0).toFixed(2)}
+        </span>
+      </div>
 
-                  <button
-                    form="bookingForm"
-                    type="submit"
-                    disabled={submitting}
-                    className={`w-full mt-6 bg-white text-black px-6 py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
-                      submitting ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-100 transform hover:scale-105 active:scale-95'
-                    }`}
-                  >
-                    {submitting ? 'Processing...' : 'Complete Booking'}
-                  </button>
+      {checkoutItems.some(it => it.serviceProviderRate) && (
+        <div className="flex justify-between text-gray-300">
+          <span>Provider Rate</span>
+          <span>
+            ₱{checkoutItems.reduce((sum, it) => {
+              return sum + (it.serviceProviderRate ?? 0);
+            }, 0).toFixed(2)}
+          </span>
+        </div>
+      )}
 
-                  <p className="mt-4 text-xs text-gray-400 text-center">
-                    By completing your booking, you agree to receive related notifications
-                  </p>
-                </>
-              )}
+      <div className="flex justify-between text-2xl font-bold text-white pt-2 border-t border-white/20">
+        <span>Total</span>
+        <span>
+          ₱{checkoutItems.reduce((sum, it) => {
+            const bookingFee = parseFloat(it.price.replace(/[^0-9.]/g, ''));
+            const providerRate = it.serviceProviderRate ?? 0;
+            return sum + bookingFee + providerRate;
+          }, 0).toFixed(2)}
+        </span>
+      </div>
+    </div>
+
+    <button
+      form="bookingForm"
+      type="submit"
+      disabled={submitting}
+      className={`w-full mt-6 bg-white text-black px-6 py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
+        submitting ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-100 transform hover:scale-105 active:scale-95'
+      }`}
+    >
+      {submitting
+        ? submissionStage === 'payment'
+          ? 'Opening Xendit in new tab...'
+          : 'Preparing Payment...'
+        : 'Proceed to Payment'}
+    </button>
+
+    <p className="mt-4 text-xs text-gray-400 text-center">
+      By completing your booking, you agree to receive related notifications
+    </p>
+  </>
+)}
             </div>
           </aside>
         </div>
