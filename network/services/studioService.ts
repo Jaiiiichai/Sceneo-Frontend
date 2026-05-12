@@ -19,6 +19,8 @@ export interface Studio {
   available: boolean;
 }
 
+
+
 export interface StudioListParams {
   city?: string;
   capacity?: number;
