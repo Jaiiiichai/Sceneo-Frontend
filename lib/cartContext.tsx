@@ -27,7 +27,7 @@ interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => Promise<void>;
    updateItem: (updatedItem: CartItem) => void;
-  attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string }) => Promise<boolean>;
+  attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; updatedPrice?: string }) => Promise<boolean>;
   removeItem: (id: string) => Promise<void>;
   clearCart: () => Promise<void>;
   updateItemQuantity: (id: string, quantity: number) => Promise<void>;
@@ -134,7 +134,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string }) => {
+  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; updatedPrice?: string }) => {
     let updated = false;
 
     setItems(prevItems => {
@@ -148,6 +148,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         serviceProviderId: service.providerId,
         serviceType: service.serviceType,
         serviceProviderName: service.providerName,
+        serviceProviderRate: service.providerRate,
       };
       updated = true;
       return nextItems;
