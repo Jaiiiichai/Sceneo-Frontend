@@ -21,6 +21,7 @@ export interface Studio {
 
 
 
+
 export interface StudioListParams {
   city?: string;
   capacity?: number;
