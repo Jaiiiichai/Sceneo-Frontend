@@ -6,8 +6,7 @@ import { CartItem, useCart } from '@/lib/cartContext';
 import { useAuth } from '@/lib/authContext';
 import { useToast } from '@/lib/toastContext';
 import { clearCheckoutDraft, getCheckoutDraft, setCheckoutDraft } from '@/lib/checkoutDraft';
-import { xenditService } from '@/network/services/xenditService';
-import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
+import { paymongoService } from '@/network/services/paymongoService';
 import { api } from '@/network';
 
 export default function BookingCheckoutPage() {
@@ -24,6 +23,7 @@ export default function BookingCheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submissionStage, setSubmissionStage] = useState<'idle' | 'preparing' | 'payment'>('idle');
   const [directBookingItem, setDirectBookingItem] = useState<CartItem | null>(null);
+  const paymentMethodType = 'qrph';
 
   const normalizePhilippinePhone = (input: string): string | null => {
     const compact = input.normalize('NFKC').replace(/[^\d+]/g, '');
@@ -252,29 +252,29 @@ export default function BookingCheckoutPage() {
         return;
       }
 
-      const invoice = await xenditService.createInvoice(bookingIdCandidate);
+      const amount = Math.round(bookingPrice * 100);
+      const description = `Sceneo booking ${bookingIdCandidate}`;
 
-      if (!invoice?.invoice_url || !invoice?.id) {
-        showToast('Unable to initialize payment. Please try again.', 'error');
+      const paymentLink = await paymongoService.createPaymentLink({
+        booking_id: bookingIdCandidate,
+        amount,
+        currency: 'PHP',
+        description,
+      });
+
+      const checkoutUrl = paymentLink?.attributes?.checkout_url;
+      if (!checkoutUrl) {
+        showToast('Unable to open QRPH payment link. Please try again.', 'error');
         return;
       }
 
-      let paymentTab: Window | null = null;
-      if (typeof window !== 'undefined') {
-        window.location.href = invoice.invoice_url;
-      }
-
-      setPendingPaymentBooking({
-        invoiceId: String(invoice.id),
-        invoiceUrl: invoice.invoice_url,
-        bookingId: String(bookingIdCandidate),
-        createdAt: new Date().toISOString(),
-      });
-
-      showToast('Payment opened. Booking is saved as pending and waiting for payment.', 'info');
       clearCheckoutDraft();
       setIsOpen(false);
-      router.push(`/pages/bookings?payment=processing&invoiceId=${encodeURIComponent(String(invoice.id))}&bookingId=${encodeURIComponent(String(bookingIdCandidate))}`);
+
+      if (typeof window !== 'undefined') {
+        window.location.href = checkoutUrl;
+        return;
+      }
     } catch (error) {
       console.error('Booking error:', error);
       const message = error instanceof Error ? error.message : 'An error occurred while creating your booking. Please try again.';
@@ -408,6 +408,14 @@ export default function BookingCheckoutPage() {
                   />
                   <p className="text-xs text-gray-500 mt-1">Philippine mobile format only</p>
                 </label>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700">Payment Method</div>
+                  <div className="rounded-lg border-2 border-black bg-black px-4 py-3 text-sm font-semibold text-white">
+                    QRPH
+                  </div>
+                  <p className="text-xs text-gray-500">Other payment options are temporarily unavailable.</p>
+                </div>
 
                 {/* Policies */}
                 <div className="space-y-4 pt-4">

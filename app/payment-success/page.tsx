@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { bookingService } from '@/network/services/bookingService';
 
 export default function PaymentSuccessPage() {
   const router = useRouter();
@@ -9,6 +10,7 @@ export default function PaymentSuccessPage() {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [error, setError] = useState('');
   const [animateIn, setAnimateIn] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(0);
 
   useEffect(() => {
     setTimeout(() => setAnimateIn(true), 100);
@@ -18,33 +20,64 @@ export default function PaymentSuccessPage() {
       setError('Missing booking ID.');
       return;
     }
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      setStatus('error');
-      setError('Missing authentication token.');
-      return;
-    }
-    fetch(`http://localhost:4000/api/bookings/${bookingId}/is-paid`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.paid) {
+
+    let isMounted = true;
+
+    const pollStatus = async () => {
+      try {
+        const booking = await bookingService.getBookingById(bookingId);
+
+        if (!isMounted) return true;
+
+        if (booking.status === 'confirmed' || booking.status === 'completed') {
           setStatus('success');
-        } else {
-          setStatus('error');
-          setError('Payment not successful.');
+          return true;
         }
-      })
-      .catch(() => {
+
+        if (booking.status === 'cancelled') {
+          setStatus('error');
+          setError('Booking was cancelled.');
+          return true;
+        }
+
+        return false;
+      } catch (err) {
+        if (!isMounted) return true;
         setStatus('error');
-        setError('Failed to check payment status.');
-      });
+        setError('Failed to check booking status.');
+        return true;
+      }
+    };
+
+    pollStatus();
+    const interval = setInterval(async () => {
+      const done = await pollStatus();
+      if (done) clearInterval(interval);
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [bookingId]);
+
+  useEffect(() => {
+    if (status !== 'success') return;
+
+    let remaining = 4;
+    setRedirectCountdown(remaining);
+
+    const interval = setInterval(() => {
+      remaining -= 1;
+      setRedirectCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        router.push('/pages/bookings');
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [status, router]);
 
   return (
     <div
@@ -97,6 +130,7 @@ export default function PaymentSuccessPage() {
           <p className="text-sm text-gray-400 leading-relaxed mb-7">
             Your studio session is booked and confirmed. We can't wait to see you!
           </p>
+          <p className="text-xs text-gray-400 mb-6">Redirecting to your bookings in {redirectCountdown || 4}s...</p>
 
           <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 mb-7 text-left">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
