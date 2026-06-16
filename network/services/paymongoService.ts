@@ -109,11 +109,12 @@ export const paymongoService = {
   },
 
   createPaymentLink: async (payload: {
-    booking_id: number | string;
+    booking_id?: number | string;
     amount: number;
     currency: string;
     description: string;
     return_url?: string;
+    [key: string]: any;
   }): Promise<PaymentLinkResponse> => {
     const endpoints = ['/payments/links', '/api/payments/links'];
     return attemptEndpoints(endpoints, async (endpoint) => {
