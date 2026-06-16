@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/authContext';
 import { useCart } from '@/lib/cartContext';
 import { useToast } from '@/lib/toastContext';
 import { xenditService } from '@/network/services/xenditService';
+import { paymongoService } from '@/network/services/paymongoService';
 import { clearPendingPaymentBooking, getPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
 
 type BookingStatus = 'pending' | 'paid' | 'completed' | 'cancelled';
@@ -105,6 +106,7 @@ export default function BookingsHistoryPage() {
   const [cancelModal, setCancelModal] = useState<HistoryBooking | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [trackedPaymentInvoiceId, setTrackedPaymentInvoiceId] = useState<string | null>(null);
+  const [trackedPaymongoLinkId, setTrackedPaymongoLinkId] = useState<string | null>(null);
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState(false);
   const [paymentPolling, setPaymentPolling] = useState(false);
 
@@ -190,33 +192,41 @@ export default function BookingsHistoryPage() {
     const payment = params.get('payment');
     const paymentBookingId = params.get('bookingId');
 
-    const finalizeBookingAfterPayment = async () => {
+    const resumeBookingAfterPaymentReturn = async () => {
       const pendingDraft = getPendingPaymentBooking();
       const bookingId = paymentBookingId ?? pendingDraft?.bookingId;
+      const paymentLinkId = pendingDraft?.paymentLinkId;
 
       if (!bookingId) {
-        showToast('Payment successful, but the booking reference is missing.', 'error');
+        showToast('Payment returned, but the booking reference is missing.', 'error');
         return;
       }
 
       try {
-        await api.put(
-          `/bookings/${bookingId}`,
-          { booking_status: 'paid' },
-          { requiresAuth: true }
-        );
-        clearPendingPaymentBooking();
+        if (paymentLinkId) {
+          setTrackedPaymongoLinkId(paymentLinkId);
+          const result = await paymongoService.syncPaymentLink(paymentLinkId);
+          if (result.status === 'paid') {
+            clearPendingPaymentBooking();
+            await clearCart();
+            setShowPaymentSuccessModal(true);
+            showToast('Payment confirmed. Your booking is paid.', 'success');
+          } else {
+            showToast('Payment returned. Waiting for PayMongo confirmation...', 'info');
+          }
+        } else {
+          showToast('Payment returned. Waiting for PayMongo confirmation...', 'info');
+        }
+
         await loadBookings(true);
-        setShowPaymentSuccessModal(true);
-        showToast('Payment successful. Your booking is confirmed.', 'success');
       } catch (error) {
-        console.error('Failed to update booking after payment success:', error);
-        showToast('Payment succeeded, but we could not update your booking. Please contact support.', 'error');
+        console.error('Failed to refresh booking after payment return:', error);
+        showToast('Payment returned, but we could not refresh your booking yet.', 'error');
       }
     };
 
     if (payment === 'success') {
-      finalizeBookingAfterPayment();
+      resumeBookingAfterPaymentReturn();
       const cleanedUrl = new URL(window.location.href);
       cleanedUrl.searchParams.delete('payment');
       window.history.replaceState({}, '', cleanedUrl.toString());
@@ -234,7 +244,66 @@ export default function BookingsHistoryPage() {
       setTrackedPaymentInvoiceId(String(pendingDraft.invoiceId));
       showToast('Resuming payment confirmation...', 'info');
     }
+    if (pendingDraft?.paymentLinkId) {
+      setTrackedPaymongoLinkId(String(pendingDraft.paymentLinkId));
+      showToast('Resuming PayMongo payment confirmation...', 'info');
+    }
   }, [showToast]);
+
+  useEffect(() => {
+    if (!trackedPaymongoLinkId || !isAuthenticated()) return;
+
+    let cancelled = false;
+    let pollTimeoutId: number | null = null;
+
+    const pollPaymongoLinkStatus = async () => {
+      if (cancelled) return;
+      setPaymentPolling(true);
+
+      try {
+        const result = await paymongoService.syncPaymentLink(trackedPaymongoLinkId);
+
+        if (result.status === 'paid') {
+          if (!cancelled) {
+            clearPendingPaymentBooking();
+            await clearCart();
+            await loadBookings(true);
+            setShowPaymentSuccessModal(true);
+            setTrackedPaymongoLinkId(null);
+            setPaymentPolling(false);
+            showToast('Payment confirmed. Your booking is paid.', 'success');
+          }
+          return;
+        }
+
+        if (result.status === 'final_unpaid') {
+          if (!cancelled) {
+            setPaymentPolling(false);
+            setTrackedPaymongoLinkId(null);
+            clearPendingPaymentBooking();
+            await loadBookings(true);
+            showToast('Payment was not completed. Please try again.', 'error');
+          }
+          return;
+        }
+      } catch (pollError) {
+        console.error('Failed to sync PayMongo payment link:', pollError);
+      }
+
+      pollTimeoutId = window.setTimeout(pollPaymongoLinkStatus, 5000);
+    };
+
+    pollPaymongoLinkStatus();
+
+    return () => {
+      cancelled = true;
+      if (pollTimeoutId !== null) {
+        window.clearTimeout(pollTimeoutId);
+      }
+      setPaymentPolling(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackedPaymongoLinkId]);
 
   useEffect(() => {
     if (!trackedPaymentInvoiceId || !isAuthenticated()) return;

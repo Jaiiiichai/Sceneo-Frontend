@@ -24,7 +24,6 @@ export default function BookingCheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submissionStage, setSubmissionStage] = useState<'idle' | 'preparing' | 'payment'>('idle');
   const [directBookingItem, setDirectBookingItem] = useState<CartItem | null>(null);
-  const paymentMethodType = 'qrph';
 
   const normalizePhilippinePhone = (input: string): string | null => {
     const compact = input.normalize('NFKC').replace(/[^\d+]/g, '');
@@ -101,8 +100,6 @@ export default function BookingCheckoutPage() {
     : directBookingItem
     ? [directBookingItem]
     : [];
-
-  const total = checkoutItems.reduce((sum, it) => sum + parseFloat(it.price.replace(/[^0-9.]/g, '')), 0);
 
   // Fetch user data on mount and auto-fill form
   useEffect(() => {
@@ -221,19 +218,20 @@ export default function BookingCheckoutPage() {
         id?: number | string;
         booking_id?: number | string;
         bookingId?: number | string;
-        data?: any;
+        data?: unknown;
       };
 
-      const getBookingIdFromResponse = (response: any): string | undefined => {
+      const getBookingIdFromResponse = (response: unknown): string | undefined => {
         if (!response || typeof response !== 'object') return undefined;
 
-        const candidate = response.id ?? response.booking_id ?? response.bookingId;
+        const record = response as CreatedBookingResponse;
+        const candidate = record.id ?? record.booking_id ?? record.bookingId;
         if (candidate != null && candidate !== '') {
           return String(candidate);
         }
 
-        if (response.data) {
-          return getBookingIdFromResponse(response.data);
+        if (record.data) {
+          return getBookingIdFromResponse(record.data);
         }
 
         return undefined;
@@ -262,7 +260,7 @@ export default function BookingCheckoutPage() {
         return;
       }
 
-      const amount = Math.round(bookingPrice * 100);
+      const amount = bookingPrice;
       const description = `Sceneo booking ${pendingBookingPayload.booking_date} ${pendingBookingPayload.booking_time}`;
       const successUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(String(bookingIdCandidate))}`;
       const paymentLink = await paymongoService.createPaymentLink({
@@ -281,7 +279,8 @@ export default function BookingCheckoutPage() {
 
       setPendingPaymentBooking({
         bookingId: String(bookingIdCandidate),
-        invoiceUrl: checkoutUrl,
+        paymentLinkId: paymentLink.id,
+        paymentLinkUrl: checkoutUrl,
         createdAt: new Date().toISOString(),
       });
       clearCheckoutDraft();
@@ -593,7 +592,7 @@ export default function BookingCheckoutPage() {
     >
       {submitting
         ? submissionStage === 'payment'
-          ? 'Opening Xendit in new tab...'
+          ? 'Opening PayMongo checkout...'
           : 'Preparing Payment...'
         : 'Proceed to Payment'}
     </button>

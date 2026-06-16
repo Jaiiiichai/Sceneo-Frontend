@@ -32,7 +32,14 @@ export interface PaymentLinkResponse {
   id: string;
   attributes?: {
     checkout_url?: string;
+    status?: string;
   };
+}
+
+export interface PaymentLinkSyncResponse {
+  status: 'paid' | 'pending' | 'final_unpaid' | 'missing_booking_reference' | string;
+  data?: unknown;
+  message?: string;
 }
 
 const unwrapResponse = <T>(response: ApiEnvelope<T> | T): T => {
@@ -74,7 +81,7 @@ export const paymongoService = {
     currency: string;
     description: string;
     return_url?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }): Promise<PaymentIntentResponse> => {
     const endpoints = ['/payments/intents', '/api/payments/intents'];
     return attemptEndpoints(endpoints, async (endpoint) => {
@@ -115,7 +122,7 @@ export const paymongoService = {
     currency: string;
     description: string;
     return_url?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }): Promise<PaymentLinkResponse> => {
     const endpoints = ['/payments/links', '/api/payments/links'];
     return attemptEndpoints(endpoints, async (endpoint) => {
@@ -125,6 +132,20 @@ export const paymongoService = {
         { requiresAuth: true }
       );
       return unwrapResponse(response);
+    });
+  },
+
+  syncPaymentLink: async (linkId: string): Promise<PaymentLinkSyncResponse> => {
+    const endpoints = [
+      `/payments/links/${linkId}/sync`,
+      `/api/payments/links/${linkId}/sync`,
+    ];
+    return attemptEndpoints(endpoints, async (endpoint) => {
+      return api.post<PaymentLinkSyncResponse>(
+        endpoint,
+        {},
+        { requiresAuth: true }
+      );
     });
   },
 };

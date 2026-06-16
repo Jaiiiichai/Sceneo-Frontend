@@ -22,14 +22,15 @@ export interface Booking {
   date: string;
   timeSlot: string;
   bookingType: 'studio' | 'professional';
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  status: 'pending' | 'paid' | 'confirmed' | 'cancelled' | 'completed';
+  booking_status?: 'pending' | 'paid' | 'confirmed' | 'cancelled' | 'completed';
   notes?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface BookingListParams {
-  status?: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  status?: 'pending' | 'paid' | 'confirmed' | 'cancelled' | 'completed';
   startDate?: string;
   endDate?: string;
   page?: number;
@@ -60,9 +61,22 @@ export const bookingService = {
    * Get booking details by ID
    */
   getBookingById: async (bookingId: string): Promise<Booking> => {
-    return api.get<Booking>(API_ENDPOINTS.bookings.details(bookingId), {
+    const response = await api.get<unknown>(API_ENDPOINTS.bookings.details(bookingId), {
       requiresAuth: true,
     });
+
+    const booking = response && typeof response === 'object' && 'data' in response
+      ? (response as { data?: Booking }).data
+      : (response as Booking);
+
+    if (!booking) {
+      throw new Error('Booking not found.');
+    }
+
+    return {
+      ...booking,
+      status: booking.status ?? booking.booking_status ?? 'pending',
+    };
   },
 
   /**

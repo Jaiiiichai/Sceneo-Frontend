@@ -7,17 +7,17 @@ function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const bookingId = searchParams.get('bookingId');
-  const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
-  const [error, setError] = useState('');
+  const [status, setStatus] = useState<'processing' | 'success' | 'error'>(
+    bookingId ? 'processing' : 'error'
+  );
+  const [error, setError] = useState(bookingId ? '' : 'Missing booking ID.');
   const [animateIn, setAnimateIn] = useState(false);
-  const [redirectCountdown, setRedirectCountdown] = useState(0);
+  const [redirectCountdown, setRedirectCountdown] = useState(4);
 
   useEffect(() => {
     setTimeout(() => setAnimateIn(true), 100);
 
     if (!bookingId) {
-      setStatus('error');
-      setError('Missing booking ID.');
       return;
     }
 
@@ -29,19 +29,21 @@ function PaymentSuccessContent() {
 
         if (!isMounted) return true;
 
-        if (booking.status === 'confirmed' || booking.status === 'completed') {
+        const bookingStatus = booking.status ?? booking.booking_status;
+
+        if (bookingStatus === 'paid' || bookingStatus === 'confirmed' || bookingStatus === 'completed') {
           setStatus('success');
           return true;
         }
 
-        if (booking.status === 'cancelled') {
+        if (bookingStatus === 'cancelled') {
           setStatus('error');
           setError('Booking was cancelled.');
           return true;
         }
 
         return false;
-      } catch (err) {
+      } catch {
         if (!isMounted) return true;
         setStatus('error');
         setError('Failed to check booking status.');
@@ -65,7 +67,6 @@ function PaymentSuccessContent() {
     if (status !== 'success') return;
 
     let remaining = 4;
-    setRedirectCountdown(remaining);
 
     const interval = setInterval(() => {
       remaining -= 1;
@@ -97,7 +98,7 @@ function PaymentSuccessContent() {
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2 tracking-tight">Confirming Payment</h2>
           <p className="text-sm text-gray-400 leading-relaxed mb-6">
-            Hang tight — we're verifying your transaction with our payment provider.
+            Hang tight — we&apos;re verifying your transaction with our payment provider.
           </p>
           <p className="text-xs text-gray-300 tracking-wide">This usually takes just a moment</p>
         </>
@@ -128,7 +129,7 @@ function PaymentSuccessContent() {
 
           <h2 className="text-2xl font-bold text-gray-900 mb-2 tracking-tight">Payment Confirmed</h2>
           <p className="text-sm text-gray-400 leading-relaxed mb-7">
-            Your studio session is booked and confirmed. We can't wait to see you!
+            Your studio session is booked and confirmed. We can&apos;t wait to see you!
           </p>
           <p className="text-xs text-gray-400 mb-6">Redirecting to your bookings in {redirectCountdown || 4}s...</p>
 

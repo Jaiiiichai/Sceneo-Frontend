@@ -8,14 +8,14 @@ function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const bookingId = searchParams.get('bookingId');
-  const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
-  const [error, setError] = useState('');
-  const [redirectCountdown, setRedirectCountdown] = useState(0);
+  const [status, setStatus] = useState<'processing' | 'success' | 'error'>(
+    bookingId ? 'processing' : 'error'
+  );
+  const [error, setError] = useState(bookingId ? '' : 'Missing booking ID.');
+  const [redirectCountdown, setRedirectCountdown] = useState(4);
 
   useEffect(() => {
     if (!bookingId) {
-      setStatus('error');
-      setError('Missing booking ID.');
       return;
     }
 
@@ -27,19 +27,21 @@ function PaymentSuccessContent() {
 
         if (!isMounted) return true;
 
-        if (booking.status === 'confirmed' || booking.status === 'completed') {
+        const bookingStatus = booking.status ?? booking.booking_status;
+
+        if (bookingStatus === 'paid' || bookingStatus === 'confirmed' || bookingStatus === 'completed') {
           setStatus('success');
           return true;
         }
 
-        if (booking.status === 'cancelled') {
+        if (bookingStatus === 'cancelled') {
           setStatus('error');
           setError('Booking was cancelled.');
           return true;
         }
 
         return false;
-      } catch (err) {
+      } catch {
         if (!isMounted) return true;
         setStatus('error');
         setError('Failed to check booking status.');
@@ -63,7 +65,6 @@ function PaymentSuccessContent() {
     if (status !== 'success') return;
 
     let remaining = 4;
-    setRedirectCountdown(remaining);
 
     const interval = setInterval(() => {
       remaining -= 1;
