@@ -271,7 +271,7 @@ export default function BookingCheckoutPage() {
         return_url: successUrl,
       });
 
-      const checkoutUrl = paymentLink?.attributes?.checkout_url;
+      const checkoutUrl = paymentLink?.checkout_url || paymentLink?.attributes?.checkout_url;
       if (!checkoutUrl) {
         showToast('Unable to open QRPH payment link. Please try again.', 'error');
         return;

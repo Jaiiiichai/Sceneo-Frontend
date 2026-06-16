@@ -30,6 +30,12 @@ export interface PaymentIntentResponse {
 
 export interface PaymentLinkResponse {
   id: string;
+  checkout_url?: string;
+  amount?: number;
+  currency?: string;
+  reference_number?: string;
+  remarks?: string;
+  status?: string;
   attributes?: {
     checkout_url?: string;
     status?: string;
@@ -131,7 +137,17 @@ export const paymongoService = {
         payload,
         { requiresAuth: true }
       );
-      return unwrapResponse(response);
+      const paymentLink = unwrapResponse(response);
+      const checkoutUrl = paymentLink.checkout_url || paymentLink.attributes?.checkout_url;
+
+      if (!checkoutUrl) {
+        throw new Error('PayMongo did not return a checkout URL.');
+      }
+
+      return {
+        ...paymentLink,
+        checkout_url: checkoutUrl,
+      };
     });
   },
 
