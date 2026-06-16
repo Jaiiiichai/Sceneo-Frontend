@@ -96,10 +96,10 @@ export default function BookingCheckoutPage() {
     return `${year}-${month}-${day}`;
   };
 
-  const checkoutItems = items.length > 0
-    ? items
-    : directBookingItem
+  const checkoutItems = directBookingItem
     ? [directBookingItem]
+    : items.length > 0
+    ? [items[0]]
     : [];
 
   // Fetch user data on mount and auto-fill form
@@ -292,6 +292,7 @@ export default function BookingCheckoutPage() {
         bookingId: String(bookingIdCandidate),
         paymentLinkId: paymentLink.id,
         paymentLinkUrl: checkoutUrl,
+        cartItemId: item.id,
         createdAt: new Date().toISOString(),
       });
       window.dispatchEvent(new Event(PAYMENT_STORAGE_EVENT));

@@ -13,7 +13,7 @@ const PAYMENT_STORAGE_EVENT = "sceneo:pending-payment-updated";
 export default function GlobalPaymentMonitor() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const { clearCart } = useCart();
+  const { removeItem } = useCart();
   const { showToast } = useToast();
   const [trackedPaymongoLinkId, setTrackedPaymongoLinkId] = useState<string | null>(null);
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState(false);
@@ -51,8 +51,11 @@ export default function GlobalPaymentMonitor() {
 
         if (result.status === "paid") {
           if (!cancelled) {
+            const pendingDraft = getPendingPaymentBooking();
             clearPendingPaymentBooking();
-            await clearCart();
+            if (pendingDraft?.cartItemId) {
+              await removeItem(pendingDraft.cartItemId);
+            }
             setTrackedPaymongoLinkId(null);
             setShowPaymentSuccessModal(true);
             showToast("Payment confirmed. Your booking is paid.", "success");
@@ -83,7 +86,7 @@ export default function GlobalPaymentMonitor() {
         window.clearTimeout(pollTimeoutId);
       }
     };
-  }, [clearCart, isAuthenticated, showToast, trackedPaymongoLinkId]);
+  }, [isAuthenticated, removeItem, showToast, trackedPaymongoLinkId]);
 
   if (!showPaymentSuccessModal) {
     return null;
