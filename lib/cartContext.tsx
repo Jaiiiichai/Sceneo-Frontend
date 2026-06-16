@@ -37,6 +37,9 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+const getCartItemKey = (item: CartItem) =>
+  `${item.timeSlotId || item.id}__${item.bookingDate || ""}__${item.bookingType || ""}`;
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -99,6 +102,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = async (item: CartItem) => {
     const hasServerPayload = Boolean(item.timeSlotId && item.bookingDate);
+    const optimisticId = `pending-${item.id}-${Date.now()}`;
+    const optimisticItem = { ...item, id: optimisticId };
 
     if (!isAuthenticated()) {
       showToast('Please log in to add items to cart.', 'error');
@@ -112,24 +117,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    setItems(prevItems => {
+      const incomingKey = getCartItemKey(item);
+      const alreadyExists = prevItems.some(existing => getCartItemKey(existing) === incomingKey);
+      return alreadyExists ? prevItems : [...prevItems, optimisticItem];
+    });
+    showToast('Item added to cart.', 'success');
+
     try {
-      await cartService.addItem({
+      const cart = await cartService.addItem({
         time_slot_id: item.timeSlotId!,
         booking_date: item.bookingDate!,
         quantity: 1,
       });
 
-      await loadCart();
-      showToast('Item added to cart.', 'success');
+      const mappedItems = (cart?.items || []).map(mapApiItemToCartItem);
+      setItems(mappedItems);
     } catch (error) {
       if (error instanceof APIError && error.status === 401) {
+        setItems(prevItems => prevItems.filter(existing => existing.id !== optimisticId));
         showToast('Session expired. Please log in again.', 'error');
         redirectToLogin();
         return;
       }
 
       console.error('Error adding item to cart:', error);
-      setItems(prevItems => [...prevItems, { ...item, id: `${item.id}-${Date.now()}` }]);
+      setItems(prevItems => prevItems.filter(existing => existing.id !== optimisticId));
       showToast('Unable to add item to server cart. Added locally instead.', 'error');
     }
   };
@@ -190,15 +203,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const removeItem = async (id: string) => {
     const targetItem = items.find(item => item.id === id);
     if (targetItem?.serverItemId && isAuthenticated()) {
+      setItems(prevItems => prevItems.filter((item) => item.id !== id));
+      showToast('Item removed from cart.', 'info');
+
       try {
         await cartService.removeItem(targetItem.serverItemId);
-        await loadCart();
-        showToast('Item removed from cart.', 'info');
         return;
       } catch (error) {
         console.error('Error removing server cart item:', error);
+        setItems(prevItems => {
+          const alreadyRestored = prevItems.some(item => item.id === targetItem.id);
+          return alreadyRestored ? prevItems : [...prevItems, targetItem];
+        });
         showToast('Unable to remove item from server cart.', 'error');
       }
+
+      return;
     }
 
     setItems(prevItems => prevItems.filter((item) => item.id !== id));
