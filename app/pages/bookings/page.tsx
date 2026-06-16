@@ -189,6 +189,39 @@ export default function BookingsHistoryPage() {
     const invoiceId = params.get('invoiceId');
     const payment = params.get('payment');
 
+    const finalizeBookingAfterPayment = async () => {
+      const pendingDraft = getPendingPaymentBooking();
+
+      if (!pendingDraft || !pendingDraft.bookingPayload) {
+        setShowPaymentSuccessModal(true);
+        showToast('Payment successful. Your booking is confirmed.', 'success');
+        await loadBookings(true);
+        return;
+      }
+
+      try {
+        await api.post('/bookings', {
+          ...pendingDraft.bookingPayload,
+          booking_status: 'paid',
+        }, { requiresAuth: true });
+        clearPendingPaymentBooking();
+        await loadBookings(true);
+        setShowPaymentSuccessModal(true);
+        showToast('Payment successful. Your booking is confirmed.', 'success');
+      } catch (error) {
+        console.error('Failed to save booking after successful payment:', error);
+        showToast('Payment succeeded, but we could not save your booking yet. Please contact support.', 'error');
+      }
+    };
+
+    if (payment === 'success') {
+      finalizeBookingAfterPayment();
+      const cleanedUrl = new URL(window.location.href);
+      cleanedUrl.searchParams.delete('payment');
+      window.history.replaceState({}, '', cleanedUrl.toString());
+      return;
+    }
+
     if (payment === 'processing' && invoiceId) {
       setTrackedPaymentInvoiceId(invoiceId);
       showToast('Waiting for payment confirmation...', 'info');

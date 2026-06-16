@@ -6,6 +6,7 @@ import { CartItem, useCart } from '@/lib/cartContext';
 import { useAuth } from '@/lib/authContext';
 import { useToast } from '@/lib/toastContext';
 import { clearCheckoutDraft, getCheckoutDraft, setCheckoutDraft } from '@/lib/checkoutDraft';
+import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
 import { paymongoService } from '@/network/services/paymongoService';
 import { api } from '@/network';
 
@@ -215,7 +216,17 @@ export default function BookingCheckoutPage() {
         return;
       }
 
-      const bookingPayload = {
+      setSubmissionStage('payment');
+      type CreatedBookingResponse = {
+        id?: number | string;
+        booking_id?: number | string;
+        data?: {
+          id?: number | string;
+          booking_id?: number | string;
+        };
+      };
+
+      const pendingBookingPayload = {
         user_id: user?.id || 0,
         customer_name: name,
         customer_email: email,
@@ -230,36 +241,15 @@ export default function BookingCheckoutPage() {
         time_slot_id: fallbackTimeSlotId,
       };
 
-      setSubmissionStage('payment');
-      type CreatedBookingResponse = {
-        id?: number | string;
-        booking_id?: number | string;
-        data?: {
-          id?: number | string;
-          booking_id?: number | string;
-        };
-      };
-
-      const createdBooking = await api.post<CreatedBookingResponse>('/bookings', bookingPayload, { requiresAuth: true });
-      const bookingIdCandidate =
-        createdBooking?.id ??
-        createdBooking?.booking_id ??
-        createdBooking?.data?.id ??
-        createdBooking?.data?.booking_id;
-
-      if (bookingIdCandidate == null || bookingIdCandidate === '') {
-        showToast('Booking was created but booking ID is missing from response.', 'error');
-        return;
-      }
-
       const amount = Math.round(bookingPrice * 100);
-      const description = `Sceneo booking ${bookingIdCandidate}`;
-
+      const description = `Sceneo booking ${pendingBookingPayload.booking_date} ${pendingBookingPayload.booking_time}`;
+      const successUrl = `${window.location.origin}/pages/bookings?payment=success`;
       const paymentLink = await paymongoService.createPaymentLink({
-        booking_id: bookingIdCandidate,
         amount,
         currency: 'PHP',
         description,
+        return_url: successUrl,
+        booking_payload: pendingBookingPayload,
       });
 
       const checkoutUrl = paymentLink?.attributes?.checkout_url;
@@ -268,6 +258,11 @@ export default function BookingCheckoutPage() {
         return;
       }
 
+      setPendingPaymentBooking({
+        bookingPayload: pendingBookingPayload,
+        invoiceUrl: checkoutUrl,
+        createdAt: new Date().toISOString(),
+      });
       clearCheckoutDraft();
       setIsOpen(false);
 

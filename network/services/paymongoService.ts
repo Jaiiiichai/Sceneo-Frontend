@@ -69,10 +69,12 @@ const attemptEndpoints = async <T>(
 
 export const paymongoService = {
   createPaymentIntent: async (payload: {
-    booking_id: number | string;
+    booking_id?: number | string;
     amount: number;
     currency: string;
     description: string;
+    return_url?: string;
+    [key: string]: any;
   }): Promise<PaymentIntentResponse> => {
     const endpoints = ['/payments/intents', '/api/payments/intents'];
     return attemptEndpoints(endpoints, async (endpoint) => {
@@ -111,6 +113,7 @@ export const paymongoService = {
     amount: number;
     currency: string;
     description: string;
+    return_url?: string;
   }): Promise<PaymentLinkResponse> => {
     const endpoints = ['/payments/links', '/api/payments/links'];
     return attemptEndpoints(endpoints, async (endpoint) => {

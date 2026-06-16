@@ -1,6 +1,7 @@
 export interface PendingPaymentBookingDraft {
-  invoiceId: string;
-  invoiceUrl: string;
+  invoiceId?: string;
+  invoiceUrl?: string;
+  bookingPayload?: Record<string, any>;
   bookingId?: string;
   createdAt: string;
 }
@@ -20,7 +21,7 @@ export const getPendingPaymentBooking = (): PendingPaymentBookingDraft | null =>
 
   try {
     const parsed = JSON.parse(raw) as PendingPaymentBookingDraft;
-    if (!parsed?.invoiceId) return null;
+    if (!parsed) return null;
     return parsed;
   } catch {
     return null;
