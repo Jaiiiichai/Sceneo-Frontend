@@ -21,6 +21,7 @@ export interface XenditInvoice {
   };
 }
 
+
 export interface FinalizedBooking {
   id: number | string;
   user_id?: number | string;
