@@ -12,6 +12,7 @@ interface Provider {
   full_name: string;
   service_type: 'photography' | 'editor' | 'make_up_artist' | string;
   rate: number;
+  quote_required?: boolean;
 }
 
 const resolveServiceType = (type: string | null): string | null => {
@@ -34,7 +35,7 @@ const getTitleByType = (type: string | null, serviceType: string | null): string
 
 export default function SelectProfessionalPage() {
   const router = useRouter();
-  const { addItem, items, attachServiceToLatestSlot } = useCart();
+  const { items, attachServiceToLatestSlot } = useCart();
   const { showToast } = useToast();
 
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -42,9 +43,7 @@ export default function SelectProfessionalPage() {
   const [pageTitle, setPageTitle] = useState('Select Professional');
 
   const getSearchParams = () => {
-    if (typeof window === 'undefined') {
-      return new URLSearchParams();
-    }
+    if (typeof window === 'undefined') return new URLSearchParams();
     return new URLSearchParams(window.location.search);
   };
 
@@ -70,15 +69,19 @@ export default function SelectProfessionalPage() {
       setLoading(true);
 
       try {
+        const draft = getCheckoutDraft();
+        const cartSlot = items.find(item => Boolean(item.timeSlotId));
+        const bookingDate = searchParams.get('date') || draft?.bookingDate || cartSlot?.bookingDate;
+        const bookingTime = searchParams.get('time') || draft?.time || cartSlot?.time;
         const response = await api.get('/providers', {
-          params: { service_type: serviceType },
+          params: {
+            service_type: serviceType,
+            booking_date: bookingDate,
+            booking_time: bookingTime,
+          },
         });
 
-        if (response.success && Array.isArray(response.data)) {
-          setProviders(response.data);
-        } else {
-          setProviders([]);
-        }
+        setProviders(response.success && Array.isArray(response.data) ? response.data : []);
       } catch (error) {
         console.error('Error fetching providers:', error);
         setProviders([]);
@@ -89,85 +92,78 @@ export default function SelectProfessionalPage() {
     };
 
     fetchProviders();
-  }, [router, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSelectProfessional = async (pro: Provider) => {
-  const searchParams = getSearchParams();
-  const hasSlotItem = items.some(item => Boolean(item.timeSlotId));
-  const currentDraft = getCheckoutDraft();
-  const hasDirectBookingParams = Boolean(
-    searchParams.get('studioId') || searchParams.get('timeSlotId')
-  );
-  const hasDraftBooking = Boolean(currentDraft?.timeSlotId);
-
-  // Case 1: Slot already in cart
-  if (hasSlotItem) {
-    const latestSlot = items.find(item => Boolean(item.timeSlotId));
-    if (!latestSlot) return;
-
-    const basePrice = parseFloat(
-      latestSlot.price.replace(/[^0-9.]/g, '')
+    const searchParams = getSearchParams();
+    const hasSlotItem = items.some(item => Boolean(item.timeSlotId));
+    const currentDraft = getCheckoutDraft();
+    const hasDirectBookingParams = Boolean(
+      searchParams.get('studioId') || searchParams.get('timeSlotId')
     );
+    const hasDraftBooking = Boolean(currentDraft?.timeSlotId);
 
-    const newTotal = basePrice + pro.rate;
+    if (hasSlotItem) {
+      const latestSlot = items.find(item => Boolean(item.timeSlotId));
+      if (!latestSlot) return;
 
-    const attached = await attachServiceToLatestSlot({
-  providerId: pro.id,
-  serviceType: pro.service_type,
-  providerName: pro.full_name,
-  providerRate: pro.rate,        // ADD
-  updatedPrice: latestSlot.price, // keep original price, don't add rate
-});
+      const attached = await attachServiceToLatestSlot({
+        providerId: pro.id,
+        serviceType: pro.service_type,
+        providerName: pro.full_name,
+        providerRate: pro.rate,
+        quoteRequired: pro.quote_required,
+        updatedPrice: latestSlot.price,
+      });
 
-    if (attached) {
-      showToast(`${pro.full_name} added (+₱${pro.rate})`, 'success');
-      router.push(getCheckoutUrl());
+      if (attached) {
+        showToast(`${pro.full_name} added (+PHP ${pro.rate})`, 'success');
+        router.push(getCheckoutUrl());
+      }
+
+      return;
     }
 
-    return;
-  }
+    if (!hasDirectBookingParams && !hasDraftBooking) {
+      showToast('Please select a slot first before choosing a provider.', 'error');
+      return;
+    }
 
-  // Case 2: No slot selected
-  if (!hasDirectBookingParams && !hasDraftBooking) {
-    showToast('Please select a slot first before choosing a provider.', 'error');
-    return;
-  }
+    if (hasDraftBooking && currentDraft) {
+      setCheckoutDraft({
+        ...currentDraft,
+        serviceProviderId: pro.id,
+        serviceType: pro.service_type,
+        serviceProviderName: pro.full_name,
+        serviceProviderRate: pro.rate,
+        serviceAddons: [
+          ...(currentDraft.serviceAddons || []).filter((addon) => addon.serviceType !== pro.service_type),
+          {
+            providerId: pro.id,
+            serviceType: pro.service_type,
+            providerName: pro.full_name,
+            providerRate: pro.rate,
+            quoteRequired: pro.quote_required,
+          },
+        ],
+      });
 
-  // Case 3: Draft booking flow
-  if (!hasDirectBookingParams && hasDraftBooking && currentDraft) {
-    const basePrice = parseFloat(
-      currentDraft.price.replace(/[^0-9.]/g, '')
-    );
+      showToast(`${pro.full_name} added (+PHP ${pro.rate})`, 'success');
+      router.push('/pages/booking/checkout');
+      return;
+    }
 
-    const newTotal = basePrice + pro.rate;
+    const params = getSearchParams();
+    params.delete('type');
+    params.set('provider_id', String(pro.id));
+    params.set('provider_type', pro.service_type);
+    params.set('provider_name', pro.full_name);
+    params.set('provider_rate', String(pro.rate));
+    params.set('provider_quote_required', String(Boolean(pro.quote_required)));
 
-    setCheckoutDraft({
-  ...currentDraft,
-  serviceProviderId: pro.id,
-  serviceType: pro.service_type,
-  serviceProviderName: pro.full_name,
-  serviceProviderRate: pro.rate, // ADD - store separately
-  // REMOVE the price: `₱${newTotal}` line - keep original price
-});
-
-// Case 4 - Direct URL, add this param:
-
-
-    showToast(`${pro.full_name} added (+₱${pro.rate})`, 'success');
-    router.push('/pages/booking/checkout');
-    return;
-  }
-
-  // Case 4: Direct URL booking
-  const params = getSearchParams();
-  params.delete('type');
-  params.set('provider_id', String(pro.id));
-  params.set('provider_type', pro.service_type);
-  params.set('provider_name', pro.full_name);
-  params.set('provider_rate', String(pro.rate));
-
-  router.push(`/pages/booking/checkout?${params.toString()}`);
-};
+    router.push(`/pages/booking/checkout?${params.toString()}`);
+  };
 
   return (
     <main className="min-h-screen bg-transparent py-12">
@@ -178,25 +174,27 @@ export default function SelectProfessionalPage() {
           {loading ? (
             <p className="text-gray-500">Loading providers...</p>
           ) : providers.length === 0 ? (
-            <p className="text-gray-500">No providers available for this service type.</p>
+            <p className="text-gray-500">No providers are scheduled for this booking time.</p>
           ) : (
             providers.map((p) => (
               <div
                 key={p.id}
-                className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between transition-colors gap-4" // Changed to horizontal flex
+                className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between transition-colors gap-4"
               >
-                <div className="flex-grow"> {/* Details take up available space */}
+                <div className="flex-grow">
                   <div className="flex justify-between items-center mb-1">
                     <h3 className="text-lg font-semibold text-gray-800">{p.full_name}</h3>
-                    <span className="text-md font-bold text-gray-900">₱{p.rate}</span>
+                    <span className="text-md font-bold text-gray-900">
+                      {p.quote_required ? 'For quotation' : `PHP ${Number(p.rate).toLocaleString()}`}
+                    </span>
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Service Type: {p.service_type}</p>
                 </div>
                 <button
                   onClick={() => handleSelectProfessional(p)}
-                  className="flex-shrink-0 bg-black text-white px-4 py-2 rounded-md font-semibold hover:bg-gray-800 transition-colors" // Button on the right
+                  className="flex-shrink-0 bg-black text-white px-4 py-2 rounded-md font-semibold hover:bg-gray-800 transition-colors"
                 >
-                  Add to Cart
+                  Select
                 </button>
               </div>
             ))

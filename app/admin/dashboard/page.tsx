@@ -56,6 +56,10 @@ interface ApiBooking {
     full_name?: string;
     service_type?: string;
   };
+  booking_addons?: Array<{
+    provider_name_snapshot?: string;
+    service_type?: string;
+  }>;
 }
 
 interface ClosedDate {
@@ -70,6 +74,23 @@ interface Provider {
   full_name: string;
   service_type: 'photography' | 'editor' | 'make_up_artist' | string;
   rate: number;
+  active?: boolean;
+  quote_required?: boolean;
+}
+
+interface ProviderSchedule {
+  id: number;
+  provider_id: number;
+  duty_date: string;
+  start_time: string;
+  end_time: string;
+  providers?: Provider;
+}
+
+interface AdminUser {
+  id?: number;
+  email?: string;
+  name?: string;
 }
 
 const formatDisplayDate = (dateValue: string): string => {
@@ -107,6 +128,26 @@ const mapProviderToServices = (provider?: { full_name?: string; service_type?: s
   return services;
 };
 
+const mapAddonsToServices = (addons?: ApiBooking['booking_addons']) => {
+  const services: Booking['services'] = {};
+  if (!addons?.length) return services;
+
+  addons.forEach((addon) => {
+    if (!addon.provider_name_snapshot || !addon.service_type) return;
+    const normalizedType = addon.service_type.toLowerCase();
+
+    if (normalizedType.includes('photo')) {
+      services.photographer = { enabled: true, name: addon.provider_name_snapshot };
+    } else if (normalizedType.includes('edit')) {
+      services.editor = { enabled: true, name: addon.provider_name_snapshot };
+    } else if (normalizedType.includes('make')) {
+      services.makeupArtist = { enabled: true, name: addon.provider_name_snapshot };
+    }
+  });
+
+  return services;
+};
+
 const mapApiBookingToBooking = (booking: ApiBooking): Booking => ({
   id: String(booking.id),
   rawDate: booking.booking_date,
@@ -121,12 +162,14 @@ const mapApiBookingToBooking = (booking: ApiBooking): Booking => ({
   duration: '55 MIN',
   price: `₱${Number(booking.booking_price || 0).toLocaleString()}`,
   status: booking.booking_status,
-  services: mapProviderToServices(booking.providers),
+  services: booking.booking_addons?.length
+    ? mapAddonsToServices(booking.booking_addons)
+    : mapProviderToServices(booking.providers),
 });
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<any>(null);
+  const [admin, setAdmin] = useState<AdminUser | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'availability' | 'providers'>('overview');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
@@ -160,11 +203,19 @@ export default function AdminDashboard() {
   const [currentViewDate, setCurrentViewDate] = useState(new Date(2026, 1, 1)); // February 2026
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [providerSchedules, setProviderSchedules] = useState<ProviderSchedule[]>([]);
   const [providersLoading, setProvidersLoading] = useState(false);
   const [providerForm, setProviderForm] = useState({
     full_name: '',
     service_type: 'photography',
     rate: '',
+    quote_required: false,
+  });
+  const [scheduleForm, setScheduleForm] = useState({
+    provider_id: '',
+    duty_date: '',
+    start_time: '09:00',
+    end_time: '17:00',
   });
   const [editingProviderId, setEditingProviderId] = useState<number | null>(null);
 
@@ -174,7 +225,7 @@ export default function AdminDashboard() {
       const result = await api.get('/closed-dates');
       if (result.success && result.data && Array.isArray(result.data)) {
         // Filter out any invalid entries
-        const validDates = result.data.filter((item: any) => 
+        const validDates = result.data.filter((item: Partial<ClosedDate>) => 
           item && typeof item === 'object' && item.closed_date
         );
         setClosedDates(validDates);
@@ -203,11 +254,27 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchProviderSchedules = async () => {
+    try {
+      const result = await api.get('/providers/schedules');
+      if (result.success && Array.isArray(result.data)) {
+        setProviderSchedules(result.data);
+      } else {
+        setProviderSchedules([]);
+      }
+    } catch (error) {
+      console.error('Error fetching provider schedules:', error);
+      setProviderSchedules([]);
+      showConfirmation('Unable to load provider schedules.', 'error');
+    }
+  };
+
   const resetProviderForm = () => {
     setProviderForm({
       full_name: '',
       service_type: 'photography',
       rate: '',
+      quote_required: false,
     });
     setEditingProviderId(null);
   };
@@ -224,6 +291,7 @@ export default function AdminDashboard() {
       full_name: providerForm.full_name.trim(),
       service_type: providerForm.service_type,
       rate: Number(providerForm.rate),
+      quote_required: providerForm.quote_required,
     };
 
     try {
@@ -253,7 +321,46 @@ export default function AdminDashboard() {
       full_name: provider.full_name,
       service_type: provider.service_type,
       rate: String(provider.rate),
+      quote_required: Boolean(provider.quote_required),
     });
+  };
+
+  const handleScheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!scheduleForm.provider_id || !scheduleForm.duty_date || !scheduleForm.start_time || !scheduleForm.end_time) {
+      showConfirmation('Please complete the duty schedule form.', 'error');
+      return;
+    }
+
+    try {
+      await api.post(
+        `/providers/${scheduleForm.provider_id}/schedules`,
+        {
+          duty_date: scheduleForm.duty_date,
+          start_time: scheduleForm.start_time,
+          end_time: scheduleForm.end_time,
+        },
+        { requiresAuth: true }
+      );
+      showConfirmation('Provider duty schedule added.', 'success');
+      setScheduleForm(prev => ({ ...prev, duty_date: '' }));
+      await fetchProviderSchedules();
+    } catch (error) {
+      console.error('Error saving provider schedule:', error);
+      showConfirmation('Failed to save provider schedule.', 'error');
+    }
+  };
+
+  const handleDeleteSchedule = async (scheduleId: number) => {
+    try {
+      await api.delete(`/providers/schedules/${scheduleId}`, { requiresAuth: true });
+      showConfirmation('Provider duty schedule removed.', 'success');
+      await fetchProviderSchedules();
+    } catch (error) {
+      console.error('Error deleting provider schedule:', error);
+      showConfirmation('Failed to remove provider schedule.', 'error');
+    }
   };
 
   const handleDeleteProvider = async (providerId: number) => {
@@ -279,6 +386,7 @@ export default function AdminDashboard() {
     fetchClosedDates();
     fetchBookings();
     fetchProviders();
+    fetchProviderSchedules();
   }, [router]);
 
   const handleLogout = () => {
@@ -1050,6 +1158,12 @@ export default function AdminDashboard() {
                         <div>
                           <p className="font-bold text-gray-900">{provider.full_name}</p>
                           <p className="text-sm text-gray-600">Type: {provider.service_type}</p>
+                          {provider.quote_required && (
+                            <p className="text-sm font-semibold text-amber-700">For quotation</p>
+                          )}
+                          <p className="mt-2 text-xs text-gray-500">
+                            {providerSchedules.filter(schedule => schedule.provider_id === provider.id).length} scheduled duty day(s)
+                          </p>
                           <p className="text-sm text-gray-600">Rate: ₱{Number(provider.rate).toLocaleString()}</p>
                         </div>
                         <div className="flex gap-2">
@@ -1115,6 +1229,16 @@ export default function AdminDashboard() {
                   />
                 </div>
 
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={providerForm.quote_required}
+                    onChange={(e) => setProviderForm(prev => ({ ...prev, quote_required: e.target.checked }))}
+                    className="h-4 w-4"
+                  />
+                  For quotation
+                </label>
+
                 <div className="flex gap-2 pt-2">
                   <button
                     type="submit"
@@ -1135,6 +1259,74 @@ export default function AdminDashboard() {
                   )}
                 </div>
               </form>
+            </div>
+
+            <div className="lg:col-span-3 bg-white rounded-xl p-6 border-2 border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Provider Duty Schedule</h2>
+
+              <form onSubmit={handleScheduleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
+                <select
+                  value={scheduleForm.provider_id}
+                  onChange={(e) => setScheduleForm(prev => ({ ...prev, provider_id: e.target.value }))}
+                  className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                >
+                  <option value="">Select provider</option>
+                  {providers.map(provider => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.full_name} ({provider.service_type})
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  value={scheduleForm.duty_date}
+                  onChange={(e) => setScheduleForm(prev => ({ ...prev, duty_date: e.target.value }))}
+                  className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                />
+                <input
+                  type="time"
+                  value={scheduleForm.start_time}
+                  onChange={(e) => setScheduleForm(prev => ({ ...prev, start_time: e.target.value }))}
+                  className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                />
+                <input
+                  type="time"
+                  value={scheduleForm.end_time}
+                  onChange={(e) => setScheduleForm(prev => ({ ...prev, end_time: e.target.value }))}
+                  className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-colors"
+                >
+                  Add Duty
+                </button>
+              </form>
+
+              {providerSchedules.length === 0 ? (
+                <p className="text-gray-500 text-sm">No provider duties scheduled yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {providerSchedules.map(schedule => (
+                    <div key={schedule.id} className="p-4 border-2 border-gray-200 rounded-xl flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-gray-900">{schedule.providers?.full_name || `Provider #${schedule.provider_id}`}</p>
+                        <p className="text-sm text-gray-600">{formatDisplayDate(schedule.duty_date)}</p>
+                        <p className="text-sm text-gray-600">
+                          {formatDisplayTime(schedule.start_time)} - {formatDisplayTime(schedule.end_time)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSchedule(schedule.id)}
+                        className="px-3 py-2 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

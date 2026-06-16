@@ -26,6 +26,10 @@ type ApiBooking = {
     full_name?: string;
     service_type?: string;
   };
+  booking_addons?: Array<{
+    provider_name_snapshot?: string;
+    service_type?: string;
+  }>;
 };
 
 type HistoryBooking = {
@@ -87,7 +91,11 @@ const toHistoryBooking = (booking: ApiBooking): HistoryBooking => {
     time: formatTime(booking.booking_time),
     status: normalizeStatus(booking.booking_status),
     price: `₱${Number(booking.booking_price || 0).toLocaleString()}`,
-    provider: booking.providers?.full_name,
+    provider: booking.booking_addons?.length
+      ? booking.booking_addons
+          .map((addon) => `${addon.service_type || 'Service'}: ${addon.provider_name_snapshot || 'Provider'}`)
+          .join(', ')
+      : booking.providers?.full_name,
     createdAt: booking.created_at ? formatDate(booking.created_at.split('T')[0]) : 'N/A',
   };
 };

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { CartItem, useCart } from '@/lib/cartContext';
+import { CartItem, ServiceAddon, useCart } from '@/lib/cartContext';
 import { useAuth } from '@/lib/authContext';
 import { useToast } from '@/lib/toastContext';
 import { clearCheckoutDraft, getCheckoutDraft, setCheckoutDraft } from '@/lib/checkoutDraft';
@@ -102,6 +102,22 @@ export default function BookingCheckoutPage() {
     ? [items[0]]
     : [];
 
+  const getItemAddons = (item: CartItem): ServiceAddon[] => {
+    if (item.serviceAddons?.length) return item.serviceAddons;
+    if (!item.serviceProviderId || !item.serviceType || !item.serviceProviderName) return [];
+    return [{
+      providerId: item.serviceProviderId,
+      serviceType: item.serviceType,
+      providerName: item.serviceProviderName,
+      providerRate: item.serviceProviderRate ?? 0,
+    }];
+  };
+
+  const getItemBasePrice = (item: CartItem) => parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
+  const getItemAddonsTotal = (item: CartItem) =>
+    getItemAddons(item).reduce((sum, addon) => sum + (addon.quoteRequired ? 0 : Number(addon.providerRate || 0)), 0);
+  const getItemTotal = (item: CartItem) => getItemBasePrice(item) + getItemAddonsTotal(item);
+
   // Fetch user data on mount and auto-fill form
   useEffect(() => {
     const loadUserData = async () => {
@@ -177,6 +193,13 @@ export default function BookingCheckoutPage() {
       };
 
       const item = checkoutItems[0];
+      const selectedAddons = getItemAddons(item);
+
+      if (selectedAddons.some((addon) => addon.quoteRequired)) {
+        paymentWindow.close();
+        showToast('This booking includes a service for quotation. Please wait for admin confirmation before payment.', 'error');
+        return;
+      }
 
       const parseTime = (timeStr: string): string => {
         if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) return timeStr;
@@ -214,7 +237,8 @@ export default function BookingCheckoutPage() {
         return serviceType;
       };
 
-      const bookingPrice = parseFloat(item.price.replace(/[^0-9.]/g, ''));
+      const bookingPrice = getItemTotal(item);
+      const primaryAddon = selectedAddons[0];
 
       const fallbackTimeSlotId = item.timeSlotId || extractUUID(item.id);
       if (!fallbackTimeSlotId) {
@@ -256,9 +280,16 @@ export default function BookingCheckoutPage() {
         booking_time: parseTime(item.time),
         booking_status: 'pending' as const,
         booking_price: bookingPrice,
-        service_type: normalizeServiceType(item.serviceType),
-        service_provider_id: item.serviceProviderId ?? null,
+        service_type: normalizeServiceType(primaryAddon?.serviceType || item.serviceType),
+        service_provider_id: primaryAddon?.providerId ?? item.serviceProviderId ?? null,
         time_slot_id: fallbackTimeSlotId,
+        addons: selectedAddons.map((addon) => ({
+          provider_id: addon.providerId,
+          service_type: addon.serviceType,
+          provider_name_snapshot: addon.providerName,
+          provider_rate_snapshot: addon.quoteRequired ? 0 : addon.providerRate,
+          quote_required: Boolean(addon.quoteRequired),
+        })),
       };
 
       const createdBooking = await api.post<CreatedBookingResponse>('/bookings', pendingBookingPayload, { requiresAuth: true });
@@ -337,6 +368,17 @@ export default function BookingCheckoutPage() {
     const providerNameParam = searchParams.get('provider_name');
     const parsedProviderId = providerIdParam ? Number(providerIdParam) : undefined;
     const providerRateParam = searchParams.get('provider_rate');
+    const providerQuoteRequiredParam = searchParams.get('provider_quote_required') === 'true';
+    const validProviderId = Number.isFinite(parsedProviderId) ? parsedProviderId : undefined;
+    const serviceAddons = validProviderId && providerTypeParam && providerNameParam
+      ? [{
+          providerId: validProviderId,
+          serviceType: providerTypeParam,
+          providerName: providerNameParam,
+          providerRate: providerRateParam ? Number(providerRateParam) : 0,
+          quoteRequired: providerQuoteRequiredParam,
+        }]
+      : undefined;
 
     const directItem: CartItem = {
       id: `direct-${studioId}-${date}`,
@@ -347,25 +389,32 @@ export default function BookingCheckoutPage() {
       bookingDate: date,
       timeSlotId,
       bookingType,
-      serviceProviderId: Number.isFinite(parsedProviderId) ? parsedProviderId : undefined,
+      serviceProviderId: validProviderId,
       serviceType: providerTypeParam || undefined,
       serviceProviderName: providerNameParam || undefined,
-      serviceProviderRate: providerRateParam ? Number(providerRateParam) : undefined
+      serviceProviderRate: providerRateParam ? Number(providerRateParam) : undefined,
+      serviceAddons,
     };
 
     setDirectBookingItem(directItem);
     setCheckoutDraft(directItem);
   }, []);
-  const handleRemoveProvider = (itemId: string) => {
+  const handleRemoveProvider = (itemId: string, serviceType?: string) => {
   const updatedItem = checkoutItems.find(it => it.id === itemId);
   if (!updatedItem) return;
 
+  const remainingAddons = serviceType
+    ? getItemAddons(updatedItem).filter((addon) => addon.serviceType !== serviceType)
+    : [];
+  const firstAddon = remainingAddons[0];
+
   const cleaned: CartItem = {
     ...updatedItem,
-    serviceProviderId: undefined,
-    serviceType: undefined,
-    serviceProviderName: undefined,
-    serviceProviderRate: undefined,
+    serviceProviderId: firstAddon?.providerId,
+    serviceType: firstAddon?.serviceType,
+    serviceProviderName: firstAddon?.providerName,
+    serviceProviderRate: firstAddon?.providerRate,
+    serviceAddons: remainingAddons,
   };
 
   // If it came from the cart, update cart items
@@ -533,26 +582,29 @@ export default function BookingCheckoutPage() {
       <div className="text-sm text-gray-400 mt-1">
         {it.bookingDate ? new Date(it.bookingDate + 'T00:00:00').toLocaleDateString() : 'No date selected'}
       </div>
-      {it.serviceProviderName && (
-        <div className="mt-2 pt-2 border-t border-white/10 flex items-start justify-between gap-2">
+      {getItemAddons(it).map((addon) => (
+        <div key={`${addon.serviceType}-${addon.providerId}`} className="mt-2 pt-2 border-t border-white/10 flex items-start justify-between gap-2">
           <div>
             <div className="text-xs text-gray-400">
-              {it.serviceType === 'photography' ? 'Photographer'
-                : it.serviceType === 'editor' ? 'Editor'
-                : it.serviceType === 'make_up_artist' ? 'Make-up Artist'
-                : it.serviceType}
+              {addon.serviceType === 'photography' ? 'Photographer'
+                : addon.serviceType === 'editor' ? 'Editor'
+                : addon.serviceType === 'make_up_artist' ? 'Make-up Artist'
+                : addon.serviceType}
             </div>
-            <div className="text-sm text-gray-200">{it.serviceProviderName}</div>
+            <div className="text-sm text-gray-200">
+              {addon.providerName}
+              <span className="text-gray-400"> - {addon.quoteRequired ? 'For quotation' : `PHP ${Number(addon.providerRate).toLocaleString()}`}</span>
+            </div>
           </div>
           <button
             type="button"
-            onClick={() => handleRemoveProvider(it.id)}
+            onClick={() => handleRemoveProvider(it.id, addon.serviceType)}
             className="text-xs text-red-400 hover:text-red-300 underline whitespace-nowrap flex-shrink-0 mt-1"
           >
             Remove
           </button>
         </div>
-      )}
+      ))}
     </div>
   </div>
 </div>
@@ -562,7 +614,7 @@ export default function BookingCheckoutPage() {
 
               {checkoutItems.length > 0 && (
   <>
-    <div className="border-t border-white/20 pt-4 space-y-3">
+    <div className="hidden">
       <div className="flex justify-between text-gray-300">
         <span>Booking Fee</span>
         <span>
@@ -592,6 +644,25 @@ export default function BookingCheckoutPage() {
             return sum + bookingFee + providerRate;
           }, 0).toFixed(2)}
         </span>
+      </div>
+    </div>
+
+    <div className="border-t border-white/20 pt-4 space-y-3">
+      <div className="flex justify-between text-gray-300">
+        <span>Booking Fee</span>
+        <span>PHP {checkoutItems.reduce((sum, it) => sum + getItemBasePrice(it), 0).toFixed(2)}</span>
+      </div>
+
+      {checkoutItems.some(it => getItemAddons(it).length > 0) && (
+        <div className="flex justify-between text-gray-300">
+          <span>Add-ons</span>
+          <span>PHP {checkoutItems.reduce((sum, it) => sum + getItemAddonsTotal(it), 0).toFixed(2)}</span>
+        </div>
+      )}
+
+      <div className="flex justify-between text-2xl font-bold text-white pt-2 border-t border-white/20">
+        <span>Total</span>
+        <span>PHP {checkoutItems.reduce((sum, it) => sum + getItemTotal(it), 0).toFixed(2)}</span>
       </div>
     </div>
 

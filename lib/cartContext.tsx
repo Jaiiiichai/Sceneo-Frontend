@@ -21,13 +21,22 @@ export interface CartItem {
   serviceType?: string;
   serviceProviderName?: string;
   serviceProviderRate?: number;
+  serviceAddons?: ServiceAddon[];
+}
+
+export interface ServiceAddon {
+  providerId: number;
+  serviceType: string;
+  providerName: string;
+  providerRate: number;
+  quoteRequired?: boolean;
 }
 
 interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => Promise<void>;
    updateItem: (updatedItem: CartItem) => void;
-  attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; updatedPrice?: string }) => Promise<boolean>;
+  attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string }) => Promise<boolean>;
   removeItem: (id: string) => Promise<void>;
   clearCart: () => Promise<void>;
   updateItemQuantity: (id: string, quantity: number) => Promise<void>;
@@ -147,7 +156,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; updatedPrice?: string }) => {
+  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string }) => {
     let updated = false;
 
     setItems(prevItems => {
@@ -156,12 +165,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       const actualIndex = prevItems.length - 1 - targetIndex;
       const nextItems = [...prevItems];
+      const nextAddon = {
+        providerId: service.providerId,
+        serviceType: service.serviceType,
+        providerName: service.providerName,
+        providerRate: service.providerRate ?? 0,
+        quoteRequired: service.quoteRequired,
+      };
+      const serviceAddons = [
+        ...(nextItems[actualIndex].serviceAddons || []).filter((addon) => addon.serviceType !== service.serviceType),
+        nextAddon,
+      ];
       nextItems[actualIndex] = {
         ...nextItems[actualIndex],
         serviceProviderId: service.providerId,
         serviceType: service.serviceType,
         serviceProviderName: service.providerName,
         serviceProviderRate: service.providerRate,
+        serviceAddons,
       };
       updated = true;
       return nextItems;
