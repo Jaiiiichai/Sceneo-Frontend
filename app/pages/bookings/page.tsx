@@ -188,29 +188,30 @@ export default function BookingsHistoryPage() {
     const params = new URLSearchParams(window.location.search);
     const invoiceId = params.get('invoiceId');
     const payment = params.get('payment');
+    const paymentBookingId = params.get('bookingId');
 
     const finalizeBookingAfterPayment = async () => {
       const pendingDraft = getPendingPaymentBooking();
+      const bookingId = paymentBookingId ?? pendingDraft?.bookingId;
 
-      if (!pendingDraft || !pendingDraft.bookingPayload) {
-        setShowPaymentSuccessModal(true);
-        showToast('Payment successful. Your booking is confirmed.', 'success');
-        await loadBookings(true);
+      if (!bookingId) {
+        showToast('Payment successful, but the booking reference is missing.', 'error');
         return;
       }
 
       try {
-        await api.post('/bookings', {
-          ...pendingDraft.bookingPayload,
-          booking_status: 'paid',
-        }, { requiresAuth: true });
+        await api.put(
+          `/bookings/${bookingId}`,
+          { booking_status: 'paid' },
+          { requiresAuth: true }
+        );
         clearPendingPaymentBooking();
         await loadBookings(true);
         setShowPaymentSuccessModal(true);
         showToast('Payment successful. Your booking is confirmed.', 'success');
       } catch (error) {
-        console.error('Failed to save booking after successful payment:', error);
-        showToast('Payment succeeded, but we could not save your booking yet. Please contact support.', 'error');
+        console.error('Failed to update booking after payment success:', error);
+        showToast('Payment succeeded, but we could not update your booking. Please contact support.', 'error');
       }
     };
 

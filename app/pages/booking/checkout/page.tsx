@@ -220,10 +220,23 @@ export default function BookingCheckoutPage() {
       type CreatedBookingResponse = {
         id?: number | string;
         booking_id?: number | string;
-        data?: {
-          id?: number | string;
-          booking_id?: number | string;
-        };
+        bookingId?: number | string;
+        data?: any;
+      };
+
+      const getBookingIdFromResponse = (response: any): string | undefined => {
+        if (!response || typeof response !== 'object') return undefined;
+
+        const candidate = response.id ?? response.booking_id ?? response.bookingId;
+        if (candidate != null && candidate !== '') {
+          return String(candidate);
+        }
+
+        if (response.data) {
+          return getBookingIdFromResponse(response.data);
+        }
+
+        return undefined;
       };
 
       const pendingBookingPayload = {
@@ -241,15 +254,23 @@ export default function BookingCheckoutPage() {
         time_slot_id: fallbackTimeSlotId,
       };
 
+      const createdBooking = await api.post<CreatedBookingResponse>('/bookings', pendingBookingPayload, { requiresAuth: true });
+      const bookingIdCandidate = getBookingIdFromResponse(createdBooking);
+
+      if (!bookingIdCandidate) {
+        showToast('Unable to determine booking ID before payment. Please try again.', 'error');
+        return;
+      }
+
       const amount = Math.round(bookingPrice * 100);
       const description = `Sceneo booking ${pendingBookingPayload.booking_date} ${pendingBookingPayload.booking_time}`;
-      const successUrl = `${window.location.origin}/pages/bookings?payment=success`;
+      const successUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(String(bookingIdCandidate))}`;
       const paymentLink = await paymongoService.createPaymentLink({
+        booking_id: bookingIdCandidate,
         amount,
         currency: 'PHP',
         description,
         return_url: successUrl,
-        booking_payload: pendingBookingPayload,
       });
 
       const checkoutUrl = paymentLink?.attributes?.checkout_url;
@@ -259,7 +280,7 @@ export default function BookingCheckoutPage() {
       }
 
       setPendingPaymentBooking({
-        bookingPayload: pendingBookingPayload,
+        bookingId: String(bookingIdCandidate),
         invoiceUrl: checkoutUrl,
         createdAt: new Date().toISOString(),
       });
