@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Menu, X, ShoppingCart, LogOut, ChevronDown } from "lucide-react";
+import { Menu, X, ShoppingCart, LogOut, ChevronDown, CalendarCheck, Building2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -42,10 +42,10 @@ export default function NavBar() {
     return (
         <header className={`${isHomePage ? 'absolute top-0 left-0 right-0 z-40' : 'sticky top-0 z-40'} bg-transparent px-4 sm:px-6 lg:px-8 pt-4`}>
             <nav
-                className={`mx-auto w-full max-w-6xl rounded-2xl px-4 sm:px-6 shadow-lg ${
+                className={`mx-auto w-full max-w-7xl rounded-lg px-4 sm:px-5 shadow-lg ${
                     isHomePage
-                        ? 'border border-white/70 bg-white/35 backdrop-blur-md shadow-slate-900/10'
-                        : 'border border-white/70 bg-white/35 backdrop-blur-md shadow-slate-900/10'
+                        ? 'border border-white/25 bg-white/16 text-white backdrop-blur-xl shadow-black/10'
+                        : 'border border-slate-200 bg-white/90 text-slate-950 backdrop-blur-xl shadow-slate-900/5'
                 }`}
             >
                 <div className="h-16 relative flex items-center">
@@ -53,36 +53,41 @@ export default function NavBar() {
                         onClick={() => setOpen(!open)}
                         aria-expanded={open}
                         aria-label="Toggle menu"
-                        className="md:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100"
+                        className={`md:hidden rounded-lg p-2 ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
                     >
                         {open ? <X size={20} /> : <Menu size={20} />}
                     </button>
 
                     <div className="flex items-center gap-3 md:gap-6 ml-2 md:ml-0">
-                        <Link href="/" className="text-2xl font-bold text-slate-900 tracking-tight">
-                            Sceneo
+                        <Link href="/" className="flex items-center gap-2 text-xl font-black tracking-tight">
+                            <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${isHomePage ? 'bg-white text-slate-950' : 'bg-slate-950 text-white'}`}>
+                                S
+                            </span>
+                            <span>Sceneo</span>
                         </Link>
 
                         <div className="relative group hidden md:block">
                             <button
                                 type="button"
-                                className="inline-flex items-center gap-1 px-3 py-2 text-lg font-semibold text-slate-800 hover:text-slate-950"
+                                className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-bold ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'}`}
                             >
                                 Book
                                 <ChevronDown size={18} className="mt-0.5" />
                             </button>
                             <div className="absolute left-0 top-full pt-2 hidden group-hover:block z-40">
-                                <div className="w-52 rounded-xl border border-slate-200 bg-white shadow-lg py-2">
+                                <div className="w-60 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
                                     <Link
                                         href="/pages/booking?bookingType=whole_studio"
-                                        className="block px-4 py-2 text-sm text-slate-700 rounded-md mx-2 hover:bg-indigo-100 hover:text-indigo-900 hover:font-semibold transition-colors"
+                                        className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-950"
                                     >
+                                        <Building2 size={17} />
                                         Book Whole Studio
                                     </Link>
                                     <Link
                                         href="/pages/booking?bookingType=slot"
-                                        className="block px-4 py-2 text-sm text-slate-700 rounded-md mx-2 hover:bg-indigo-100 hover:text-indigo-900 hover:font-semibold transition-colors"
+                                        className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-950"
                                     >
+                                        <CalendarCheck size={17} />
                                         Book a Slot
                                     </Link>
                                 </div>
@@ -94,11 +99,11 @@ export default function NavBar() {
                         <div className="hidden md:flex items-center gap-4">
                             <button
                                 onClick={() => setIsOpen(true)}
-                                className="text-gray-600 hover:text-gray-900 relative"
+                                className={`relative rounded-lg p-2 ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'}`}
                             >
                                 <ShoppingCart size={24} />
                                 {items.length > 0 && (
-                                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-xs font-bold text-white">
                                         {items.length}
                                     </span>
                                 )}
@@ -115,11 +120,11 @@ export default function NavBar() {
                                             alt={user.name}
                                             width={40}
                                             height={40}
-                                            className="w-10 h-10 rounded-full border-2 border-gray-300"
+                                            className={`h-10 w-10 rounded-full border-2 ${isHomePage ? 'border-white/60' : 'border-slate-200'}`}
                                         />
                                     </button>
                                     {showUserMenu && (
-                                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
+                                        <div className="absolute right-0 z-50 mt-2 w-52 rounded-lg border border-slate-200 bg-white py-2 shadow-xl">
                                             <div className="px-4 py-2 border-b border-gray-100">
                                                 <p className="font-medium text-gray-900">{user.name}</p>
                                                 <p className="text-sm text-gray-500">{user.email}</p>
@@ -154,7 +159,7 @@ export default function NavBar() {
                             ) : (
                                 <Link
                                     href="/pages/Auth/login"
-                                    className="bg-black text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-gray-900"
+                                    className={`${isHomePage ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'} rounded-lg px-5 py-2.5 font-bold`}
                                 >
                                     Login
                                 </Link>
@@ -165,20 +170,20 @@ export default function NavBar() {
 
                 {/* Mobile menu */}
                 {open && (
-                    <div className="md:hidden mt-2 pb-4 border-t border-gray-100">
+                    <div className={`mt-2 border-t pb-4 md:hidden ${isHomePage ? 'border-white/20' : 'border-slate-200'}`}>
                         <div className="flex flex-col px-2">
-                            <p className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Book</p>
+                            <p className={`px-3 pb-1 pt-3 text-xs font-bold uppercase tracking-wide ${isHomePage ? 'text-white/70' : 'text-slate-500'}`}>Book</p>
                             <Link
                                 href="/pages/booking?bookingType=whole_studio"
                                 onClick={() => setOpen(false)}
-                                className="block py-2 px-3 text-gray-700 rounded-md hover:bg-indigo-100 hover:text-indigo-900 hover:font-semibold transition-colors"
+                                className={`rounded-lg px-3 py-2 font-semibold ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
                             >
                                 Book Whole Studio
                             </Link>
                             <Link
                                 href="/pages/booking?bookingType=slot"
                                 onClick={() => setOpen(false)}
-                                className="block py-2 px-3 text-gray-700 rounded-md hover:bg-indigo-100 hover:text-indigo-900 hover:font-semibold transition-colors"
+                                className={`rounded-lg px-3 py-2 font-semibold ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
                             >
                                 Book a Slot
                             </Link>
@@ -186,7 +191,7 @@ export default function NavBar() {
                             <Link
                                 href="/pages/booking"
                                 onClick={() => setOpen(false)}
-                                className="block py-2 px-3 text-gray-700 rounded-md hover:bg-gray-50"
+                                className={`rounded-lg px-3 py-2 font-semibold ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
                             >
                                 Browse Studios
                             </Link>
@@ -211,14 +216,14 @@ export default function NavBar() {
                                     <Link
                                         href="/pages/profile"
                                         onClick={() => setOpen(false)}
-                                        className="block py-2 px-3 text-gray-700 rounded-md hover:bg-gray-50"
+                                        className={`rounded-lg px-3 py-2 ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
                                     >
                                         Profile
                                     </Link>
                                     <Link
                                         href="/pages/bookings"
                                         onClick={() => setOpen(false)}
-                                        className="block py-2 px-3 text-gray-700 rounded-md hover:bg-gray-50"
+                                        className={`rounded-lg px-3 py-2 ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
                                     >
                                         My Bookings
                                     </Link>

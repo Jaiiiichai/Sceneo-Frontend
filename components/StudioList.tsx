@@ -6,6 +6,7 @@ import { useCart } from '@/lib/cartContext';
 import { BookingType } from '@/lib/bookingContext'; // Import BookingType from the new context
 import { setCheckoutDraft } from '@/lib/checkoutDraft';
 import { getSlotsForDate, filterSlotsByBookingType, isSlotTooClose } from '@/lib/timeSlots';
+import { ArrowRight, Building2, CalendarClock, Camera, ShoppingCart } from 'lucide-react';
 
 interface Studio {
   id: string;
@@ -46,11 +47,6 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
         setGeneratedStudios([]);
         return;
       }
-
-      console.log('=== DATE SELECTION DEBUG ===');
-      console.log('Selected Date (raw):', selectedDate);
-      console.log('Selected Date (toString):', selectedDate.toString());
-      console.log('Selected Date (formatted):', formatLocalDate(selectedDate));
 
       setLoading(true);
       try {
@@ -135,9 +131,9 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
   // Show loading state while fetching time slots
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 space-y-3">
-        <div className="w-8 h-8 border-4 border-gray-300 border-t-black rounded-full animate-spin"></div>
-        <p className="text-gray-600">Loading available time slots...</p>
+      <div className="flex flex-col items-center justify-center space-y-3 py-16">
+        <div className="h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-slate-950"></div>
+        <p className="font-semibold text-slate-600">Loading available time slots...</p>
       </div>
     );
   }
@@ -145,27 +141,32 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
   // Show empty state when no slots are available
   if (displayStudios.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 space-y-3 text-center">
-        <p className="text-gray-600 text-lg">No time slots available for this date.</p>
-        <p className="text-gray-500 text-sm">Please select a different date or booking type.</p>
+      <div className="flex flex-col items-center justify-center space-y-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 py-16 text-center">
+        <CalendarClock className="h-10 w-10 text-slate-400" />
+        <p className="text-lg font-bold text-slate-700">No time slots available for this date.</p>
+        <p className="text-sm text-slate-500">Please select a different date or booking type.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4 w-full">
+    <div className="w-full space-y-3 sm:space-y-4">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">Step 2</p>
+        <h2 className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">Choose a Time</h2>
+      </div>
       {displayStudios.map((studio) => (
         <div
           key={studio.id}
-          className="border border-gray-300 rounded-lg p-4 sm:p-5 bg-white hover:shadow-md transition-shadow"
+          className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md sm:p-5"
         >
           {/* Mobile Layout */}
           <div className="flex flex-col sm:hidden space-y-3">
             <div className="flex justify-between items-start">
               <div>
-                <p className="font-bold text-lg text-gray-900">{studio.time}</p>
-                <p className="text-sm text-gray-700">{studio.duration}</p>
-                <p className="font-semibold text-gray-900">{studio.price}</p>
+                <p className="text-lg font-black text-slate-950">{studio.time}</p>
+                <p className="text-sm text-slate-600">{studio.duration}</p>
+                <p className="font-bold text-slate-950">{studio.price}</p>
               </div>
               <p className={`text-xs font-semibold ${getStatusColor(studio.status)}`}>
                 {getStatusText(studio.status)}
@@ -181,11 +182,6 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
                 onClick={async () => {
                   if (!isBookingDisabled(studio.status)) {
                     const formattedDate = selectedDate ? formatLocalDate(selectedDate) : undefined;
-                    console.log('=== ADD TO CART CLICKED ===');
-                    console.log('Studio:', studio);
-                    console.log('Selected Date:', selectedDate);
-                    console.log('Formatted Date:', formattedDate);
-                    
                     await addItem({
                       id: studio.id,
                       time: studio.time,
@@ -199,12 +195,13 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
                   }
                 }}
                 disabled={isBookingDisabled(studio.status)}
-                className={`w-full px-6 py-2.5 rounded-full font-bold transition-all ${
+                className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-6 py-2.5 font-bold transition-all ${
                   isBookingDisabled(studio.status)
-                    ? 'bg-gray-300 text-white cursor-not-allowed opacity-60'
-                    : 'border-2 border-black text-black hover:bg-black hover:text-white'
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-70'
+                    : 'border border-slate-950 text-slate-950 hover:bg-slate-950 hover:text-white'
                 }`}
               >
+                <ShoppingCart size={16} />
                 ADD TO CART
               </button>
               <button
@@ -225,12 +222,13 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
                   }
                 }}
                 disabled={isBookingDisabled(studio.status)}
-                className={`w-full px-6 py-2.5 rounded-full font-bold transition-all ${
+                className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-6 py-2.5 font-bold transition-all ${
                   isBookingDisabled(studio.status)
-                    ? 'bg-gray-400 text-white cursor-not-allowed opacity-60'
-                    : 'bg-black text-white hover:bg-gray-800 active:scale-95'
+                    ? 'bg-slate-300 text-white cursor-not-allowed opacity-70'
+                    : 'bg-slate-950 text-white hover:bg-slate-800 active:scale-95'
                 }`}
               >
+                <ArrowRight size={16} />
                 BOOK
               </button>
             </div>
@@ -238,15 +236,19 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
 
           {/* Desktop Layout */}
           <div className="hidden sm:flex items-center gap-4 lg:gap-6">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white">
+              {bookingType === 'whole_studio' ? <Building2 size={22} /> : <Camera size={22} />}
+            </div>
+
             {/* Time */}
-            <div className="w-20 flex-shrink-0">
-              <p className="font-bold text-gray-900">{studio.time}</p>
+            <div className="w-24 flex-shrink-0">
+              <p className="font-black text-slate-950">{studio.time}</p>
             </div>
 
             {/* Duration & Price */}
             <div className="w-24 lg:w-28 flex-shrink-0">
-              <p className="text-sm text-gray-700">{studio.duration}</p>
-              <p className="font-semibold text-gray-900">{studio.price}</p>
+              <p className="text-sm text-slate-600">{studio.duration}</p>
+              <p className="font-bold text-slate-950">{studio.price}</p>
             </div>
 
             {/* Status */}
@@ -267,11 +269,6 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
               onClick={async () => {
                 if (!isBookingDisabled(studio.status)) {
                   const formattedDate = selectedDate ? formatLocalDate(selectedDate) : undefined;
-                  console.log('=== ADD TO CART CLICKED (Desktop) ===');
-                  console.log('Studio:', studio);
-                  console.log('Selected Date:', selectedDate);
-                  console.log('Formatted Date:', formattedDate);
-                  
                   await addItem({
                     id: studio.id,
                     time: studio.time,
@@ -285,12 +282,13 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
                 }
               }}
               disabled={isBookingDisabled(studio.status)}
-              className={`px-6 py-2 rounded-full font-bold transition-all whitespace-nowrap ${
+              className={`inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-bold transition-all whitespace-nowrap ${
                 isBookingDisabled(studio.status)
-                  ? 'bg-gray-300 text-white cursor-not-allowed opacity-60'
-                  : 'border-2 border-black text-black hover:bg-black hover:text-white'
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-70'
+                  : 'border border-slate-950 text-slate-950 hover:bg-slate-950 hover:text-white'
               }`}
             >
+              <ShoppingCart size={16} />
               ADD TO CART
             </button>
             <button
@@ -311,12 +309,13 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
                 }
               }}
               disabled={isBookingDisabled(studio.status)}
-              className={`px-6 py-2 rounded-full font-bold transition-all whitespace-nowrap ${
+              className={`inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-bold transition-all whitespace-nowrap ${
                 isBookingDisabled(studio.status)
-                  ? 'bg-gray-400 text-white cursor-not-allowed opacity-60'
-                  : 'bg-black text-white hover:bg-gray-800 active:scale-95'
+                  ? 'bg-slate-300 text-white cursor-not-allowed opacity-70'
+                  : 'bg-slate-950 text-white hover:bg-slate-800 active:scale-95'
               }`}
             >
+              <ArrowRight size={16} />
               BOOK
             </button>
           </div>

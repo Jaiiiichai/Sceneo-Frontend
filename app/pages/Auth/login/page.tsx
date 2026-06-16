@@ -41,22 +41,23 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-transparent flex items-center justify-center p-4">
-      <div className="bg-white p-12 rounded-lg shadow-sm w-full max-w-md">
-        <h1 className="text-4xl font-bold text-center text-gray-900 mb-2">
+    <div className="flex min-h-screen items-center justify-center bg-[#f7f7f4] p-4 pt-28">
+      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+        <p className="mb-2 text-center text-xs font-black uppercase tracking-[0.22em] text-rose-700">Sceneo</p>
+        <h1 className="text-center text-4xl font-black text-slate-950 mb-2">
           Log In
         </h1>
         
-        <p className="text-center text-gray-600 mb-8">
+        <p className="text-center text-slate-600 mb-8">
           New to this site?{' '}
-          <Link href="/pages/Auth/signup" className="text-red-600 hover:text-red-700">
+          <Link href="/pages/Auth/signup" className="font-bold text-rose-700 hover:text-rose-800">
             Sign Up
           </Link>
         </p>
 
         <form onSubmit={handleEmailLogin} className="space-y-6">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="email" className="block text-sm font-bold text-slate-700 mb-2">
               Email
             </label>
             <input
@@ -64,13 +65,13 @@ export default function LoginPage() {
               id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border-b-2 border-gray-300 focus:border-gray-900 outline-none px-1 py-2 transition-colors"
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 outline-none transition-colors focus:border-slate-950"
               required
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="password" className="block text-sm font-bold text-slate-700 mb-2">
               Password
             </label>
             <input
@@ -78,7 +79,7 @@ export default function LoginPage() {
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border-b-2 border-gray-300 focus:border-gray-900 outline-none px-1 py-2 transition-colors"
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 outline-none transition-colors focus:border-slate-950"
               required
             />
           </div>
@@ -88,7 +89,7 @@ export default function LoginPage() {
           )}
 
           <div>
-            <Link href="/pages/Auth/forgot-password" className="text-blue-600 hover:text-blue-700 text-sm">
+            <Link href="/pages/Auth/forgot-password" className="text-sm font-semibold text-slate-600 hover:text-slate-950">
               Forgot password?
             </Link>
           </div>
@@ -96,7 +97,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gray-600 text-white px-6 py-3 rounded hover:bg-gray-700 transition-colors disabled:opacity-50"
+            className="w-full rounded-lg bg-slate-950 px-6 py-3 font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
           >
             {loading ? 'Logging in...' : 'Log In'}
           </button>

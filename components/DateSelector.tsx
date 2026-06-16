@@ -81,19 +81,22 @@ export default function DateSelector({ onDateSelect, selectedDate }: DateSelecto
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Select a Date</h2>
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-700">Step 1</p>
+        <h2 className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">Select a Date</h2>
+      </div>
       
       <div className="relative">
         <button
           onClick={() => scroll('left')}
-          className="hidden sm:block absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white rounded-full p-2 shadow-md hover:shadow-lg transition-shadow"
+          className="absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm transition hover:bg-slate-50 sm:block"
         >
           <ChevronLeft size={20} className="text-gray-700" />
         </button>
 
         <div
           id="date-container"
-          className="flex gap-2 sm:gap-3 overflow-x-auto scrollbar-hide px-0 sm:px-12 py-2 sm:py-4"
+          className="scrollbar-hide flex gap-2 overflow-x-auto px-0 py-2 sm:gap-3 sm:px-12 sm:py-4"
           style={{ scrollBehavior: 'smooth' }}
         >
           {dates.map((date, idx) => {
@@ -116,12 +119,12 @@ export default function DateSelector({ onDateSelect, selectedDate }: DateSelecto
                   }
                 }}
                 disabled={dateIsClosed}
-                className={`flex-shrink-0 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold whitespace-nowrap transition-all ${
+                className={`min-w-28 flex-shrink-0 rounded-lg border px-4 py-3 text-sm font-bold whitespace-nowrap transition-all sm:px-6 ${
                   dateIsClosed
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60 line-through'
+                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-70 line-through'
                     : dateIsSelected
-                    ? 'bg-black text-white shadow-lg'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'border-slate-950 bg-slate-950 text-white shadow-lg'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-950 hover:bg-slate-50'
                 }`}
               >
                 {formatDate(date)}
@@ -133,7 +136,7 @@ export default function DateSelector({ onDateSelect, selectedDate }: DateSelecto
 
         <button
           onClick={() => scroll('right')}
-          className="hidden sm:block absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white rounded-full p-2 shadow-md hover:shadow-lg transition-shadow"
+          className="absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm transition hover:bg-slate-50 sm:block"
         >
           <ChevronRight size={20} className="text-gray-700" />
         </button>

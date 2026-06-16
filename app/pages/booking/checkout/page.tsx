@@ -431,19 +431,20 @@ export default function BookingCheckoutPage() {
 };
 
   return (
-    <main className="min-h-screen bg-transparent py-8 sm:py-12">
+    <main className="min-h-screen bg-[#f7f7f4] py-8 pt-28 sm:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-gray-900 tracking-tight">Complete Your Booking</h1>
-          <p className="mt-2 text-gray-600">Fill in your details to confirm your studio reservation</p>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-700">Sceneo Checkout</p>
+          <h1 className="mt-2 text-3xl sm:text-4xl lg:text-5xl font-black text-slate-950 tracking-tight">Complete Your Booking</h1>
+          <p className="mt-2 text-slate-600">Fill in your details to confirm your studio reservation</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Left - Client Details (span 2 columns) */}
           <div className="lg:col-span-2 space-y-6">
             {/* Client Details Card */}
-            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100">
+            <div className="bg-white rounded-lg p-6 sm:p-8 border border-slate-200 shadow-sm">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Client Details</h2>
 
               <form id="bookingForm" onSubmit={handleSubmit} className="space-y-6">
@@ -519,7 +520,7 @@ export default function BookingCheckoutPage() {
             </div>
 
             {/* Add-on Services Card */}
-            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100">
+            <div className="bg-white rounded-lg p-6 sm:p-8 border border-slate-200 shadow-sm">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Add-on Services</h2>
               <p className="text-gray-600 mb-6">Enhance your studio experience with professional add-ons</p>
               
@@ -559,7 +560,7 @@ export default function BookingCheckoutPage() {
 
           {/* Right - Booking Summary */}
           <aside className="lg:sticky lg:top-8 h-fit">
-            <div className="bg-gradient-to-br from-gray-900 to-black rounded-2xl p-6 sm:p-8 text-white">
+            <div className="bg-slate-950 rounded-lg p-6 sm:p-8 text-white shadow-lg">
               <h2 className="text-2xl font-bold mb-6">Booking Summary</h2>
 
               <div className="space-y-4 mb-6">
