@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import { useCart } from "@/lib/cartContext";
 import { clearPendingPaymentBooking, getPendingPaymentBooking } from "@/lib/pendingPaymentBooking";
@@ -10,6 +11,7 @@ import { paymongoService } from "@/network/services/paymongoService";
 const PAYMENT_STORAGE_EVENT = "sceneo:pending-payment-updated";
 
 export default function GlobalPaymentMonitor() {
+  const router = useRouter();
   const { isAuthenticated } = useAuth();
   const { clearCart } = useCart();
   const { showToast } = useToast();
@@ -96,7 +98,10 @@ export default function GlobalPaymentMonitor() {
         </p>
         <button
           type="button"
-          onClick={() => setShowPaymentSuccessModal(false)}
+          onClick={() => {
+            setShowPaymentSuccessModal(false);
+            router.push("/");
+          }}
           className="w-full px-4 py-4 rounded-lg bg-slate-950 text-white text-lg font-bold hover:bg-slate-800"
         >
           Great
