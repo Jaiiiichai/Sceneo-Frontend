@@ -82,7 +82,7 @@ export default function BookingCheckoutPage() {
     return new URLSearchParams(window.location.search);
   };
 
-  const goToProviderSelection = (type: 'photographer' | 'editor' | 'makeup_artist') => {
+  const goToProviderSelection = (type: 'photographer' | 'makeup_artist') => {
     const params = getCurrentSearchParams();
     params.set('type', type);
     router.push(`/pages/booking/checkout/select-professional?${params.toString()}`);
@@ -523,7 +523,7 @@ export default function BookingCheckoutPage() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Add-on Services</h2>
               <p className="text-gray-600 mb-6">Enhance your studio experience with professional add-ons</p>
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   type="button"
                   onClick={() => goToProviderSelection('photographer')}
@@ -536,8 +536,8 @@ export default function BookingCheckoutPage() {
 
                 <button
                   type="button"
-                  onClick={() => goToProviderSelection('editor')}
-                  className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-6 text-center hover:border-black transition-all duration-300 transform hover:-translate-y-1"
+                  onClick={() => undefined}
+                  className="hidden"
                 >
                   <div className="text-4xl mb-3">✍️</div>
                   <h3 className="font-bold text-gray-900 mb-1">Editor</h3>

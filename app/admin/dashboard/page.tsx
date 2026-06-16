@@ -204,6 +204,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [providerSchedules, setProviderSchedules] = useState<ProviderSchedule[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState<number | null>(null);
   const [providersLoading, setProvidersLoading] = useState(false);
   const [providerForm, setProviderForm] = useState({
     full_name: '',
@@ -213,11 +214,26 @@ export default function AdminDashboard() {
   });
   const [scheduleForm, setScheduleForm] = useState({
     provider_id: '',
-    duty_date: '',
-    start_time: '09:00',
+    start_date: '',
+    end_date: '',
+    start_time: '08:00',
     end_time: '17:00',
   });
   const [editingProviderId, setEditingProviderId] = useState<number | null>(null);
+  const selectedProvider = providers.find(provider => provider.id === selectedProviderId) || null;
+  const selectedProviderSchedules = selectedProvider
+    ? providerSchedules
+        .filter(schedule => schedule.provider_id === selectedProvider.id)
+        .sort((a, b) => `${a.duty_date} ${a.start_time}`.localeCompare(`${b.duty_date} ${b.start_time}`))
+    : [];
+
+  const getProviderScheduleCount = (providerId: number) =>
+    providerSchedules.filter(schedule => schedule.provider_id === providerId).length;
+
+  const selectProviderForSchedule = (provider: Provider) => {
+    setSelectedProviderId(provider.id);
+    setScheduleForm(prev => ({ ...prev, provider_id: String(provider.id) }));
+  };
 
   // Fetch closed dates from API
   const fetchClosedDates = async () => {
@@ -328,23 +344,46 @@ export default function AdminDashboard() {
   const handleScheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!scheduleForm.provider_id || !scheduleForm.duty_date || !scheduleForm.start_time || !scheduleForm.end_time) {
+    if (!scheduleForm.provider_id || !scheduleForm.start_date || !scheduleForm.start_time || !scheduleForm.end_time) {
       showConfirmation('Please complete the duty schedule form.', 'error');
       return;
     }
 
     try {
-      await api.post(
-        `/providers/${scheduleForm.provider_id}/schedules`,
-        {
-          duty_date: scheduleForm.duty_date,
-          start_time: scheduleForm.start_time,
-          end_time: scheduleForm.end_time,
-        },
-        { requiresAuth: true }
-      );
-      showConfirmation('Provider duty schedule added.', 'success');
-      setScheduleForm(prev => ({ ...prev, duty_date: '' }));
+      const startDate = new Date(`${scheduleForm.start_date}T00:00:00`);
+      const endDate = scheduleForm.end_date
+        ? new Date(`${scheduleForm.end_date}T00:00:00`)
+        : startDate;
+
+      if (endDate < startDate) {
+        showConfirmation('End date cannot be before start date.', 'error');
+        return;
+      }
+
+      const dates: string[] = [];
+      const cursor = new Date(startDate);
+      while (cursor <= endDate) {
+        const year = cursor.getFullYear();
+        const month = String(cursor.getMonth() + 1).padStart(2, '0');
+        const day = String(cursor.getDate()).padStart(2, '0');
+        dates.push(`${year}-${month}-${day}`);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      await Promise.all(dates.map(dutyDate =>
+        api.post(
+          `/providers/${scheduleForm.provider_id}/schedules`,
+          {
+            duty_date: dutyDate,
+            start_time: scheduleForm.start_time,
+            end_time: scheduleForm.end_time,
+          },
+          { requiresAuth: true }
+        )
+      ));
+
+      showConfirmation(`Provider duty schedule added for ${dates.length} day(s).`, 'success');
+      setScheduleForm(prev => ({ ...prev, start_date: '', end_date: '' }));
       await fetchProviderSchedules();
     } catch (error) {
       console.error('Error saving provider schedule:', error);
@@ -1153,7 +1192,13 @@ export default function AdminDashboard() {
               ) : (
                 <div className="space-y-3">
                   {providers.map(provider => (
-                    <div key={provider.id} className="p-4 border-2 border-gray-200 rounded-xl">
+                    <div
+                      key={provider.id}
+                      onClick={() => selectProviderForSchedule(provider)}
+                      className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${
+                        selectedProviderId === provider.id ? 'border-black bg-gray-50' : 'border-gray-200 bg-white'
+                      }`}
+                    >
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div>
                           <p className="font-bold text-gray-900">{provider.full_name}</p>
@@ -1162,25 +1207,67 @@ export default function AdminDashboard() {
                             <p className="text-sm font-semibold text-amber-700">For quotation</p>
                           )}
                           <p className="mt-2 text-xs text-gray-500">
-                            {providerSchedules.filter(schedule => schedule.provider_id === provider.id).length} scheduled duty day(s)
+                            {getProviderScheduleCount(provider.id)} scheduled duty day(s)
                           </p>
                           <p className="text-sm text-gray-600">Rate: ₱{Number(provider.rate).toLocaleString()}</p>
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handleEditProvider(provider)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleEditProvider(provider);
+                            }}
                             className="px-3 py-2 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
                           >
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDeleteProvider(provider.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDeleteProvider(provider.id);
+                            }}
                             className="px-3 py-2 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
                           >
                             <span className="inline-flex items-center gap-1"><Trash2 size={12} /> Delete</span>
                           </button>
                         </div>
                       </div>
+                      {selectedProviderId === provider.id && (
+                        <div className="mt-4 border-t border-gray-200 pt-4">
+                          <div className="flex items-center justify-between gap-3 mb-3">
+                            <h3 className="font-bold text-gray-900">Schedules</h3>
+                            <span className="text-xs font-semibold text-gray-500">
+                              {selectedProviderSchedules.length} duty day(s)
+                            </span>
+                          </div>
+                          {selectedProviderSchedules.length === 0 ? (
+                            <p className="text-sm text-gray-500">No duty schedules yet.</p>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {selectedProviderSchedules.map(schedule => (
+                                <div key={schedule.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3 bg-white">
+                                  <div>
+                                    <p className="text-sm font-bold text-gray-900">{formatDisplayDate(schedule.duty_date)}</p>
+                                    <p className="text-xs text-gray-600">
+                                      {formatDisplayTime(schedule.start_time)} - {formatDisplayTime(schedule.end_time)}
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleDeleteSchedule(schedule.id);
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1212,7 +1299,6 @@ export default function AdminDashboard() {
                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
                   >
                     <option value="photography">photography</option>
-                    <option value="editor">editor</option>
                     <option value="make_up_artist">make_up_artist</option>
                   </select>
                 </div>
@@ -1262,38 +1348,64 @@ export default function AdminDashboard() {
             </div>
 
             <div className="lg:col-span-3 bg-white rounded-xl p-6 border-2 border-gray-200">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Provider Duty Schedule</h2>
+              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Add Duty Schedule</h2>
+                  <p className="text-sm text-gray-600">
+                    Select a provider card above, then add one day or a date range with the same hours.
+                  </p>
+                </div>
+                {selectedProvider && (
+                  <div className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-bold text-gray-800">
+                    Selected: {selectedProvider.full_name}
+                  </div>
+                )}
+              </div>
 
-              <form onSubmit={handleScheduleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
+              <form onSubmit={handleScheduleSubmit} className="grid grid-cols-1 md:grid-cols-6 gap-3">
                 <select
                   value={scheduleForm.provider_id}
-                  onChange={(e) => setScheduleForm(prev => ({ ...prev, provider_id: e.target.value }))}
+                  onChange={(e) => {
+                    const providerId = Number(e.target.value);
+                    setScheduleForm(prev => ({ ...prev, provider_id: e.target.value }));
+                    setSelectedProviderId(Number.isFinite(providerId) ? providerId : null);
+                  }}
                   className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
                 >
                   <option value="">Select provider</option>
                   {providers.map(provider => (
                     <option key={provider.id} value={provider.id}>
-                      {provider.full_name} ({provider.service_type})
+                      {provider.full_name}
                     </option>
                   ))}
                 </select>
                 <input
                   type="date"
-                  value={scheduleForm.duty_date}
-                  onChange={(e) => setScheduleForm(prev => ({ ...prev, duty_date: e.target.value }))}
+                  value={scheduleForm.start_date}
+                  onChange={(e) => setScheduleForm(prev => ({ ...prev, start_date: e.target.value, end_date: prev.end_date || e.target.value }))}
                   className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  aria-label="Start date"
+                />
+                <input
+                  type="date"
+                  value={scheduleForm.end_date}
+                  onChange={(e) => setScheduleForm(prev => ({ ...prev, end_date: e.target.value }))}
+                  className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  aria-label="End date"
                 />
                 <input
                   type="time"
                   value={scheduleForm.start_time}
                   onChange={(e) => setScheduleForm(prev => ({ ...prev, start_time: e.target.value }))}
                   className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  aria-label="Start time"
                 />
                 <input
                   type="time"
                   value={scheduleForm.end_time}
                   onChange={(e) => setScheduleForm(prev => ({ ...prev, end_time: e.target.value }))}
                   className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  aria-label="End time"
                 />
                 <button
                   type="submit"
@@ -1302,31 +1414,6 @@ export default function AdminDashboard() {
                   Add Duty
                 </button>
               </form>
-
-              {providerSchedules.length === 0 ? (
-                <p className="text-gray-500 text-sm">No provider duties scheduled yet.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {providerSchedules.map(schedule => (
-                    <div key={schedule.id} className="p-4 border-2 border-gray-200 rounded-xl flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-bold text-gray-900">{schedule.providers?.full_name || `Provider #${schedule.provider_id}`}</p>
-                        <p className="text-sm text-gray-600">{formatDisplayDate(schedule.duty_date)}</p>
-                        <p className="text-sm text-gray-600">
-                          {formatDisplayTime(schedule.start_time)} - {formatDisplayTime(schedule.end_time)}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteSchedule(schedule.id)}
-                        className="px-3 py-2 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         )}
