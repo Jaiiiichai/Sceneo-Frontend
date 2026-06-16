@@ -430,6 +430,7 @@ export default function AdminDashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem('sceneo_admin');
+    localStorage.removeItem('authToken');
     router.push('/admin');
   };
 

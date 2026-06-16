@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock, Mail } from 'lucide-react';
+import { APIError, api } from '@/network';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -24,17 +25,40 @@ export default function AdminLoginPage() {
     setError('');
     setLoading(true);
 
-    // Mock admin login - replace with real API call
-    if (email === 'admin@sceneo.com' && password === 'admin123') {
-      const adminUser = {
-        id: '1',
-        email: 'admin@sceneo.com',
-        name: 'Admin User'
-      };
-      localStorage.setItem('sceneo_admin', JSON.stringify(adminUser));
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data?: {
+          admin?: {
+            id?: number | string;
+            email?: string;
+          };
+          token?: string;
+        };
+        message?: string;
+      }>('/admin/login', { email, password });
+
+      const admin = response.data?.admin;
+      const token = response.data?.token;
+
+      if (!response.success || !admin || !token) {
+        throw new Error(response.message || 'Invalid email or password');
+      }
+
+      localStorage.setItem('sceneo_admin', JSON.stringify({
+        id: admin.id,
+        email: admin.email,
+        name: admin.email || 'Admin',
+      }));
+      localStorage.setItem('authToken', token);
       router.push('/admin/dashboard');
-    } else {
-      setError('Invalid email or password');
+    } catch (error) {
+      const message = error instanceof APIError
+        ? error.message
+        : error instanceof Error
+        ? error.message
+        : 'Invalid email or password';
+      setError(message);
       setLoading(false);
     }
   };
@@ -104,10 +128,9 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-500">
-            <p>Demo credentials:</p>
-            <p className="font-mono text-xs mt-1">admin@sceneo.com / admin123</p>
-          </div>
+          <p className="mt-6 text-center text-sm text-gray-500">
+            Use the admin account saved in the database.
+          </p>
         </div>
       </div>
     </div>
