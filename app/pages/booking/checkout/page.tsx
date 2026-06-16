@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/authContext';
 import { useToast } from '@/lib/toastContext';
 import { clearCheckoutDraft, getCheckoutDraft, setCheckoutDraft } from '@/lib/checkoutDraft';
 import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
+import { PAYMENT_STORAGE_EVENT } from '@/components/GlobalPaymentMonitor';
 import { paymongoService } from '@/network/services/paymongoService';
 import { api } from '@/network';
 
@@ -158,6 +159,14 @@ export default function BookingCheckoutPage() {
 
     setSubmitting(true);
     setSubmissionStage('preparing');
+    const paymentWindow = typeof window !== 'undefined' ? window.open('', '_blank') : null;
+
+    if (!paymentWindow) {
+      showToast('Please allow pop-ups so PayMongo checkout can open in a new tab.', 'error');
+      setSubmitting(false);
+      setSubmissionStage('idle');
+      return;
+    }
 
     try {
       // Extract UUID from potentially concatenated ID (cart adds timestamp)
@@ -256,6 +265,7 @@ export default function BookingCheckoutPage() {
       const bookingIdCandidate = getBookingIdFromResponse(createdBooking);
 
       if (!bookingIdCandidate) {
+        paymentWindow.close();
         showToast('Unable to determine booking ID before payment. Please try again.', 'error');
         return;
       }
@@ -273,6 +283,7 @@ export default function BookingCheckoutPage() {
 
       const checkoutUrl = paymentLink?.checkout_url || paymentLink?.attributes?.checkout_url;
       if (!checkoutUrl) {
+        paymentWindow.close();
         showToast('Unable to open QRPH payment link. Please try again.', 'error');
         return;
       }
@@ -283,14 +294,15 @@ export default function BookingCheckoutPage() {
         paymentLinkUrl: checkoutUrl,
         createdAt: new Date().toISOString(),
       });
+      window.dispatchEvent(new Event(PAYMENT_STORAGE_EVENT));
       clearCheckoutDraft();
       setIsOpen(false);
 
-      if (typeof window !== 'undefined') {
-        window.location.href = checkoutUrl;
-        return;
-      }
+      paymentWindow.location.href = checkoutUrl;
+      paymentWindow.focus();
+      return;
     } catch (error) {
+      paymentWindow.close();
       console.error('Booking error:', error);
       const message = error instanceof Error ? error.message : 'An error occurred while creating your booking. Please try again.';
       showToast(message, 'error');

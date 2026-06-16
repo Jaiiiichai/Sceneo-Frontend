@@ -7,6 +7,7 @@ import { CartProvider } from "@/lib/cartContext";
 import { BookingTypeProvider } from "@/lib/bookingContext";
 import { AuthProvider } from "@/lib/authContext";
 import { ToastProvider } from "@/lib/toastContext";
+import GlobalPaymentMonitor from "@/components/GlobalPaymentMonitor";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,6 +42,7 @@ export default function RootLayout({
                 <div className="relative z-10">
                   <NavBar />
                   {children}
+                  <GlobalPaymentMonitor />
                 </div>
               </CartProvider>
             </BookingTypeProvider>
