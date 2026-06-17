@@ -30,13 +30,14 @@ export interface ServiceAddon {
   providerName: string;
   providerRate: number;
   quoteRequired?: boolean;
+  durationMinutes?: number;
 }
 
 interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => Promise<void>;
    updateItem: (updatedItem: CartItem) => void;
-  attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string }) => Promise<boolean>;
+  attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string; durationMinutes?: number }) => Promise<boolean>;
   removeItem: (id: string) => Promise<void>;
   clearCart: () => Promise<void>;
   updateItemQuantity: (id: string, quantity: number) => Promise<void>;
@@ -154,7 +155,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string }) => {
+  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string; durationMinutes?: number }) => {
     let updated = false;
 
     setItems(prevItems => {
@@ -169,6 +170,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         providerName: service.providerName,
         providerRate: service.providerRate ?? 0,
         quoteRequired: service.quoteRequired,
+        durationMinutes: service.durationMinutes,
       };
       const serviceAddons = [
         ...(nextItems[actualIndex].serviceAddons || []).filter((addon) => addon.serviceType !== service.serviceType),

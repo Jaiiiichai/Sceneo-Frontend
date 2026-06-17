@@ -21,6 +21,7 @@ interface Booking {
     photographer?: {
       enabled: boolean;
       name: string;
+      durationMinutes?: number;
     };
     editor?: {
       enabled: boolean;
@@ -59,6 +60,7 @@ interface ApiBooking {
   booking_addons?: Array<{
     provider_name_snapshot?: string;
     service_type?: string;
+    duration_minutes?: number | null;
   }>;
 }
 
@@ -74,6 +76,8 @@ interface Provider {
   full_name: string;
   service_type: 'photography' | 'editor' | 'make_up_artist' | string;
   rate: number;
+  rate_30_minutes?: number | null;
+  rate_60_minutes?: number | null;
   active?: boolean;
   quote_required?: boolean;
 }
@@ -151,7 +155,11 @@ const mapAddonsToServices = (addons?: ApiBooking['booking_addons']) => {
     const normalizedType = addon.service_type.toLowerCase();
 
     if (normalizedType.includes('photo')) {
-      services.photographer = { enabled: true, name: addon.provider_name_snapshot };
+      services.photographer = {
+        enabled: true,
+        name: addon.provider_name_snapshot,
+        durationMinutes: addon.duration_minutes || undefined,
+      };
     } else if (normalizedType.includes('edit')) {
       services.editor = { enabled: true, name: addon.provider_name_snapshot };
     } else if (normalizedType.includes('make')) {
@@ -255,6 +263,8 @@ export default function AdminDashboard() {
     full_name: '',
     service_type: 'photography',
     rate: '',
+    rate_30_minutes: '1000',
+    rate_60_minutes: '1800',
     quote_required: false,
   });
   const [scheduleForm, setScheduleForm] = useState({
@@ -351,6 +361,8 @@ export default function AdminDashboard() {
       full_name: '',
       service_type: 'photography',
       rate: '',
+      rate_30_minutes: '1000',
+      rate_60_minutes: '1800',
       quote_required: false,
     });
     setEditingProviderId(null);
@@ -359,15 +371,28 @@ export default function AdminDashboard() {
   const handleProviderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!providerForm.full_name.trim() || !providerForm.rate) {
-      showConfirmation('Please fill in provider name and rate.', 'error');
+    const isPhotography = providerForm.service_type === 'photography';
+
+    if (
+      !providerForm.full_name.trim() ||
+      (!isPhotography && !providerForm.rate) ||
+      (isPhotography && (!providerForm.rate_30_minutes || !providerForm.rate_60_minutes))
+    ) {
+      showConfirmation(
+        isPhotography
+          ? 'Please fill in provider name, 30-minute rate, and 60-minute rate.'
+          : 'Please fill in provider name and rate.',
+        'error'
+      );
       return;
     }
 
     const payload = {
       full_name: providerForm.full_name.trim(),
       service_type: providerForm.service_type,
-      rate: Number(providerForm.rate),
+      rate: isPhotography ? Number(providerForm.rate_60_minutes) : Number(providerForm.rate),
+      rate_30_minutes: isPhotography ? Number(providerForm.rate_30_minutes) : null,
+      rate_60_minutes: isPhotography ? Number(providerForm.rate_60_minutes) : null,
       quote_required: providerForm.quote_required,
     };
 
@@ -397,6 +422,8 @@ export default function AdminDashboard() {
       full_name: provider.full_name,
       service_type: provider.service_type,
       rate: String(provider.rate),
+      rate_30_minutes: provider.rate_30_minutes ? String(provider.rate_30_minutes) : '',
+      rate_60_minutes: provider.rate_60_minutes ? String(provider.rate_60_minutes) : '',
       quote_required: Boolean(provider.quote_required),
     });
   };
@@ -1260,6 +1287,11 @@ export default function AdminDashboard() {
                             <div>
                               <p className="font-bold text-gray-900">Photographer</p>
                               <p className="text-sm text-gray-600">{selectedBooking.services.photographer.name}</p>
+                              {selectedBooking.services.photographer.durationMinutes && (
+                                <p className="text-xs font-semibold text-gray-500">
+                                  {selectedBooking.services.photographer.durationMinutes} minutes
+                                </p>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1496,7 +1528,11 @@ export default function AdminDashboard() {
                           <p className="mt-3 text-xs font-bold text-slate-500">
                             {getProviderScheduleCount(provider.id)} scheduled duty day(s)
                           </p>
-                          <p className="text-sm text-gray-600">Rate: ₱{Number(provider.rate).toLocaleString()}</p>
+                          <p className="text-sm text-gray-600">
+                            {provider.service_type === 'photography'
+                              ? `Rates: 30 min ₱${Number(provider.rate_30_minutes ?? provider.rate ?? 0).toLocaleString()} / 60 min ₱${Number(provider.rate_60_minutes ?? provider.rate ?? 0).toLocaleString()}`
+                              : `Rate: ₱${Number(provider.rate).toLocaleString()}`}
+                          </p>
                         </div>
                         <div className="flex gap-2">
                           <button
@@ -1585,7 +1621,12 @@ export default function AdminDashboard() {
                   <label className="block text-sm font-bold text-slate-700 mb-1">Service Type</label>
                   <select
                     value={providerForm.service_type}
-                    onChange={(e) => setProviderForm(prev => ({ ...prev, service_type: e.target.value }))}
+                    onChange={(e) => setProviderForm(prev => ({
+                      ...prev,
+                      service_type: e.target.value,
+                      rate_30_minutes: e.target.value === 'photography' ? (prev.rate_30_minutes || '1000') : '',
+                      rate_60_minutes: e.target.value === 'photography' ? (prev.rate_60_minutes || '1800') : '',
+                    }))}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
                   >
                     <option value="photography">Photography</option>
@@ -1594,17 +1635,44 @@ export default function AdminDashboard() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Rate</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={providerForm.rate}
-                    onChange={(e) => setProviderForm(prev => ({ ...prev, rate: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
-                    placeholder="1500"
-                  />
-                </div>
+                {providerForm.service_type === 'photography' ? (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">30-minute Rate</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={providerForm.rate_30_minutes}
+                        onChange={(e) => setProviderForm(prev => ({ ...prev, rate_30_minutes: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        placeholder="800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">60-minute Rate</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={providerForm.rate_60_minutes}
+                        onChange={(e) => setProviderForm(prev => ({ ...prev, rate_60_minutes: e.target.value, rate: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        placeholder="1500"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Rate</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={providerForm.rate}
+                      onChange={(e) => setProviderForm(prev => ({ ...prev, rate: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                      placeholder="1500"
+                    />
+                  </div>
+                )}
 
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                   <input

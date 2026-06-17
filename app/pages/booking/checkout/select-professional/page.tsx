@@ -12,6 +12,10 @@ interface Provider {
   full_name: string;
   service_type: 'photography' | 'editor' | 'make_up_artist' | string;
   rate: number;
+  rate_30_minutes?: number | null;
+  rate_60_minutes?: number | null;
+  available_durations?: number[];
+  remaining_minutes?: number;
   quote_required?: boolean;
 }
 
@@ -94,7 +98,31 @@ export default function SelectProfessionalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSelectProfessional = async (pro: Provider) => {
+  const getPhotographyRate = (pro: Provider, durationMinutes: 30 | 60) => {
+    if (durationMinutes === 30) return Number(pro.rate_30_minutes ?? pro.rate ?? 0);
+    return Number(pro.rate_60_minutes ?? pro.rate ?? 0);
+  };
+
+  const getProviderRateForSelection = (pro: Provider, durationMinutes?: 30 | 60) => {
+    if (pro.service_type === 'photography' && durationMinutes) {
+      return getPhotographyRate(pro, durationMinutes);
+    }
+
+    return Number(pro.rate || 0);
+  };
+
+  const getAvailablePhotographyDurations = (pro: Provider): Array<30 | 60> => {
+    if (Array.isArray(pro.available_durations) && pro.available_durations.length > 0) {
+      return pro.available_durations
+        .filter((duration): duration is 30 | 60 => duration === 30 || duration === 60)
+        .sort((a, b) => a - b);
+    }
+
+    return [30, 60];
+  };
+
+  const handleSelectProfessional = async (pro: Provider, durationMinutes?: 30 | 60) => {
+    const providerRate = getProviderRateForSelection(pro, durationMinutes);
     const searchParams = getSearchParams();
     const hasSlotItem = items.some(item => Boolean(item.timeSlotId));
     const currentDraft = getCheckoutDraft();
@@ -111,13 +139,14 @@ export default function SelectProfessionalPage() {
         providerId: pro.id,
         serviceType: pro.service_type,
         providerName: pro.full_name,
-        providerRate: pro.rate,
+        providerRate,
         quoteRequired: pro.quote_required,
+        durationMinutes,
         updatedPrice: latestSlot.price,
       });
 
       if (attached) {
-        showToast(`${pro.full_name} added (+PHP ${pro.rate})`, 'success');
+        showToast(`${pro.full_name} added (+PHP ${providerRate})`, 'success');
         router.push(getCheckoutUrl());
       }
 
@@ -135,20 +164,21 @@ export default function SelectProfessionalPage() {
         serviceProviderId: pro.id,
         serviceType: pro.service_type,
         serviceProviderName: pro.full_name,
-        serviceProviderRate: pro.rate,
+        serviceProviderRate: providerRate,
         serviceAddons: [
           ...(currentDraft.serviceAddons || []).filter((addon) => addon.serviceType !== pro.service_type),
           {
             providerId: pro.id,
             serviceType: pro.service_type,
             providerName: pro.full_name,
-            providerRate: pro.rate,
+            providerRate,
             quoteRequired: pro.quote_required,
+            durationMinutes,
           },
         ],
       });
 
-      showToast(`${pro.full_name} added (+PHP ${pro.rate})`, 'success');
+      showToast(`${pro.full_name} added (+PHP ${providerRate})`, 'success');
       router.push('/pages/booking/checkout');
       return;
     }
@@ -158,8 +188,13 @@ export default function SelectProfessionalPage() {
     params.set('provider_id', String(pro.id));
     params.set('provider_type', pro.service_type);
     params.set('provider_name', pro.full_name);
-    params.set('provider_rate', String(pro.rate));
+    params.set('provider_rate', String(providerRate));
     params.set('provider_quote_required', String(Boolean(pro.quote_required)));
+    if (durationMinutes) {
+      params.set('provider_duration_minutes', String(durationMinutes));
+    } else {
+      params.delete('provider_duration_minutes');
+    }
 
     router.push(`/pages/booking/checkout?${params.toString()}`);
   };
@@ -184,17 +219,38 @@ export default function SelectProfessionalPage() {
                   <div className="flex justify-between items-center mb-1">
                     <h3 className="text-lg font-semibold text-gray-800">{p.full_name}</h3>
                     <span className="text-md font-bold text-gray-900">
-                      {p.quote_required ? 'For quotation' : `PHP ${Number(p.rate).toLocaleString()}`}
+                      {p.quote_required
+                        ? 'For quotation'
+                        : p.service_type === 'photography'
+                          ? `30 min PHP ${getPhotographyRate(p, 30).toLocaleString()} / 60 min PHP ${getPhotographyRate(p, 60).toLocaleString()}`
+                          : `PHP ${Number(p.rate).toLocaleString()}`}
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mb-1">Service Type: {p.service_type}</p>
+                  {p.service_type === 'photography' && typeof p.remaining_minutes === 'number' && (
+                    <p className="text-xs font-semibold text-gray-500">{p.remaining_minutes} photography minutes left for this slot</p>
+                  )}
                 </div>
-                <button
-                  onClick={() => handleSelectProfessional(p)}
-                  className="flex-shrink-0 bg-black text-white px-4 py-2 rounded-md font-semibold hover:bg-gray-800 transition-colors"
-                >
-                  Select
-                </button>
+                {p.service_type === 'photography' && !p.quote_required ? (
+                  <div className="flex flex-shrink-0 gap-2">
+                    {getAvailablePhotographyDurations(p).map((duration) => (
+                      <button
+                        key={`${p.id}-${duration}`}
+                        onClick={() => handleSelectProfessional(p, duration)}
+                        className="bg-black text-white px-4 py-2 rounded-md font-semibold hover:bg-gray-800 transition-colors"
+                      >
+                        {duration} min
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleSelectProfessional(p)}
+                    className="flex-shrink-0 bg-black text-white px-4 py-2 rounded-md font-semibold hover:bg-gray-800 transition-colors"
+                  >
+                    Select
+                  </button>
+                )}
               </div>
             ))
           )}

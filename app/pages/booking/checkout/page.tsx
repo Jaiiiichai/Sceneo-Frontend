@@ -124,6 +124,7 @@ export default function BookingCheckoutPage() {
       serviceType: item.serviceType,
       providerName: item.serviceProviderName,
       providerRate: item.serviceProviderRate ?? 0,
+      durationMinutes: item.serviceAddons?.[0]?.durationMinutes,
     }];
   };
 
@@ -357,6 +358,7 @@ export default function BookingCheckoutPage() {
           provider_name_snapshot: addon.providerName,
           provider_rate_snapshot: addon.quoteRequired ? 0 : addon.providerRate,
           quote_required: Boolean(addon.quoteRequired),
+          duration_minutes: addon.durationMinutes || null,
         })),
       };
 
@@ -436,6 +438,9 @@ export default function BookingCheckoutPage() {
     const parsedProviderId = providerIdParam ? Number(providerIdParam) : undefined;
     const providerRateParam = searchParams.get('provider_rate');
     const providerQuoteRequiredParam = searchParams.get('provider_quote_required') === 'true';
+    const providerDurationParam = searchParams.get('provider_duration_minutes');
+    const parsedProviderDuration = providerDurationParam ? Number(providerDurationParam) : undefined;
+    const validProviderDuration = Number.isFinite(parsedProviderDuration) ? parsedProviderDuration : undefined;
     const validProviderId = Number.isFinite(parsedProviderId) ? parsedProviderId : undefined;
     const serviceAddons = validProviderId && providerTypeParam && providerNameParam
       ? [{
@@ -444,6 +449,7 @@ export default function BookingCheckoutPage() {
           providerName: providerNameParam,
           providerRate: providerRateParam ? Number(providerRateParam) : 0,
           quoteRequired: providerQuoteRequiredParam,
+          durationMinutes: validProviderDuration,
         }]
       : undefined;
 
@@ -700,6 +706,9 @@ export default function BookingCheckoutPage() {
             </div>
             <div className="text-sm text-gray-200">
               {addon.providerName}
+              {addon.durationMinutes ? (
+                <span className="text-gray-400"> - {addon.durationMinutes} min</span>
+              ) : null}
               <span className="text-gray-400"> - {addon.quoteRequired ? 'For quotation' : `PHP ${Number(addon.providerRate).toLocaleString()}`}</span>
             </div>
           </div>
