@@ -12,6 +12,15 @@ import { paymongoService } from '@/network/services/paymongoService';
 import { api } from '@/network';
 import { CalendarDays, Camera, Palette, PenTool, Receipt, ShieldCheck } from 'lucide-react';
 
+interface PromoValidationResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    code: string;
+    discounted_base_price: number;
+  };
+}
+
 export default function BookingCheckoutPage() {
   const { items, setIsOpen,updateItem } = useCart();
   const { user, fetchUser, isAuthenticated } = useAuth();
@@ -21,7 +30,11 @@ export default function BookingCheckoutPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [acceptPolicy, setAcceptPolicy] = useState(true);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoApplying, setPromoApplying] = useState(false);
+  const [promoMessage, setPromoMessage] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountedBasePrice: number } | null>(null);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submissionStage, setSubmissionStage] = useState<'idle' | 'preparing' | 'payment'>('idle');
@@ -118,6 +131,10 @@ export default function BookingCheckoutPage() {
   const getItemAddonsTotal = (item: CartItem) =>
     getItemAddons(item).reduce((sum, addon) => sum + (addon.quoteRequired ? 0 : Number(addon.providerRate || 0)), 0);
   const getItemTotal = (item: CartItem) => getItemBasePrice(item) + getItemAddonsTotal(item);
+  const bookingBaseTotal = checkoutItems.reduce((sum, item) => sum + getItemBasePrice(item), 0);
+  const bookingAddonsTotal = checkoutItems.reduce((sum, item) => sum + getItemAddonsTotal(item), 0);
+  const discountedBaseTotal = appliedPromo ? appliedPromo.discountedBasePrice : bookingBaseTotal;
+  const checkoutTotal = discountedBaseTotal + bookingAddonsTotal;
 
   // Fetch user data on mount and auto-fill form
   useEffect(() => {
@@ -142,6 +159,57 @@ export default function BookingCheckoutPage() {
     }
   }, [user]);
 
+  const handlePromoCodeChange = (value: string) => {
+    setPromoCode(value.toUpperCase());
+    setPromoMessage('');
+    setAppliedPromo(null);
+  };
+
+  const handleApplyPromoCode = async () => {
+    const normalizedPromoCode = promoCode.trim();
+    const item = checkoutItems[0];
+
+    if (!item) {
+      setPromoMessage('Select a booking slot before applying a promo code.');
+      return;
+    }
+
+    if (!normalizedPromoCode) {
+      setPromoMessage('Enter a promo code.');
+      return;
+    }
+
+    setPromoApplying(true);
+    setPromoMessage('');
+
+    try {
+      const response = await api.post<PromoValidationResponse>('/bookings/promo/validate', {
+        promo_code: normalizedPromoCode,
+        booking_type: item.bookingType || 'professional_slots',
+        booking_base_price: getItemBasePrice(item),
+      }, { requiresAuth: true });
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Promo code could not be applied.');
+      }
+
+      setAppliedPromo({
+        code: response.data.code,
+        discountedBasePrice: response.data.discounted_base_price,
+      });
+      setPromoCode(response.data.code);
+      setPromoMessage(response.message || 'Promo code applied.');
+      showToast('Promo code applied.', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Promo code could not be applied.';
+      setAppliedPromo(null);
+      setPromoMessage(message);
+      showToast(message, 'error');
+    } finally {
+      setPromoApplying(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || checkoutItems.length === 0) {
@@ -160,8 +228,8 @@ export default function BookingCheckoutPage() {
       return;
     }
 
-    if (!acceptPolicy) {
-      showToast('Please agree to the cancellation policy.', 'error');
+    if (!acceptedTerms) {
+      showToast('Please read and agree to all Terms & Conditions before payment.', 'error');
       return;
     }
     
@@ -236,7 +304,7 @@ export default function BookingCheckoutPage() {
         return serviceType;
       };
 
-      const bookingPrice = getItemTotal(item);
+      const bookingPrice = checkoutTotal;
       const primaryAddon = selectedAddons[0];
 
       const fallbackTimeSlotId = item.timeSlotId || extractUUID(item.id);
@@ -282,6 +350,7 @@ export default function BookingCheckoutPage() {
         service_type: normalizeServiceType(primaryAddon?.serviceType || item.serviceType),
         service_provider_id: primaryAddon?.providerId ?? item.serviceProviderId ?? null,
         time_slot_id: fallbackTimeSlotId,
+        promo_code: appliedPromo?.code || undefined,
         addons: selectedAddons.map((addon) => ({
           provider_id: addon.providerId,
           service_type: addon.serviceType,
@@ -300,7 +369,7 @@ export default function BookingCheckoutPage() {
         return;
       }
 
-      const amount = bookingPrice;
+      const amount = checkoutTotal;
       const description = `Sceneo Studio booking ${pendingBookingPayload.booking_date} ${pendingBookingPayload.booking_time}`;
       const successUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(String(bookingIdCandidate))}`;
       const paymentLink = await paymongoService.createPaymentLink({
@@ -501,24 +570,29 @@ export default function BookingCheckoutPage() {
                   <p className="text-xs text-gray-500">Other payment options are temporarily unavailable.</p>
                 </div>
 
-                {/* Policies */}
-                <div className="space-y-4 pt-4">
-                  <label className="flex items-start gap-3 cursor-pointer group">
-                    <input 
-                      type="checkbox" 
-                      checked={acceptPolicy} 
-                      onChange={(e) => setAcceptPolicy(e.target.checked)} 
-                      className="mt-1 h-5 w-5 rounded border-slate-300 text-slate-950 focus:ring-slate-950" 
+                {/* Terms and Conditions */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 sm:p-5">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={acceptedTerms}
+                      onChange={(event) => setAcceptedTerms(event.target.checked)}
+                      className="mt-1 h-5 w-5 rounded border-slate-300 text-slate-950 focus:ring-slate-950"
+                      required
                     />
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900">
-                      I have read and agree to the{' '}
+                    <span className="text-sm leading-relaxed text-slate-700">
+                      I have read, understood, and agree to the{' '}
                       <button
                         type="button"
-                        onClick={() => setShowPolicyModal(true)}
-                        className="font-semibold text-rose-700 underline hover:text-rose-800"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          setShowPolicyModal(true);
+                        }}
+                        className="font-bold text-rose-700 underline hover:text-rose-800"
                       >
-                        cancellation policy
+                        Terms & Policies
                       </button>
+                      .
                     </span>
                   </label>
                 </div>
@@ -681,11 +755,65 @@ export default function BookingCheckoutPage() {
     </div>
 
     <div className="border-t border-white/20 pt-4 space-y-3">
-      <div className="flex justify-between text-gray-300">
-        <span>Booking Fee</span>
-        <span>PHP {checkoutItems.reduce((sum, it) => sum + getItemBasePrice(it), 0).toFixed(2)}</span>
+      <div className="rounded-lg border border-white/15 bg-white/10 p-4">
+        <label className="mb-2 block text-sm font-bold text-white">Grand Opening Promo Code</label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={promoCode}
+            onChange={(event) => handlePromoCodeChange(event.target.value)}
+            placeholder="Enter code"
+            disabled={promoApplying || submitting}
+            className="min-w-0 flex-1 rounded-lg border border-white/20 bg-white px-3 py-2 text-sm font-bold uppercase text-slate-950 placeholder:text-slate-400 focus:border-white focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={handleApplyPromoCode}
+            disabled={promoApplying || submitting || !promoCode.trim()}
+            className="rounded-lg bg-white px-4 py-2 text-sm font-black text-slate-950 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {promoApplying ? 'Checking...' : appliedPromo ? 'Applied' : 'Apply'}
+          </button>
+        </div>
+        {promoMessage && (
+          <p className={`mt-2 text-xs font-semibold ${appliedPromo ? 'text-green-300' : 'text-rose-300'}`}>
+            {promoMessage}
+          </p>
+        )}
       </div>
 
+      <div className="flex justify-between text-gray-300">
+        <span>Booking Fee</span>
+        <span className={appliedPromo ? 'line-through opacity-70' : ''}>PHP {bookingBaseTotal.toFixed(2)}</span>
+      </div>
+
+      {appliedPromo && (
+        <div className="flex justify-between text-green-300">
+          <span>Promo Fee ({appliedPromo.code})</span>
+          <span>PHP {discountedBaseTotal.toFixed(2)}</span>
+        </div>
+      )}
+
+      {appliedPromo && (
+        <div className="flex justify-between text-green-300">
+          <span>Promo Savings</span>
+          <span>- PHP {Math.max(0, bookingBaseTotal - discountedBaseTotal).toFixed(2)}</span>
+        </div>
+      )}
+
+      {checkoutItems.some(it => getItemAddons(it).length > 0) && (
+        <div className="flex justify-between text-gray-300">
+          <span>Add-ons</span>
+          <span>PHP {bookingAddonsTotal.toFixed(2)}</span>
+        </div>
+      )}
+
+      <div className="flex justify-between text-2xl font-bold text-white pt-2 border-t border-white/20">
+        <span>Total</span>
+        <span>PHP {checkoutTotal.toFixed(2)}</span>
+      </div>
+
+      <div className="hidden">
       {checkoutItems.some(it => getItemAddons(it).length > 0) && (
         <div className="flex justify-between text-gray-300">
           <span>Add-ons</span>
@@ -697,14 +825,15 @@ export default function BookingCheckoutPage() {
         <span>Total</span>
         <span>PHP {checkoutItems.reduce((sum, it) => sum + getItemTotal(it), 0).toFixed(2)}</span>
       </div>
+      </div>
     </div>
 
     <button
       form="bookingForm"
       type="submit"
-      disabled={submitting}
+      disabled={submitting || !acceptedTerms}
       className={`w-full mt-6 bg-white text-black px-6 py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
-        submitting ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-100 transform hover:scale-105 active:scale-95'
+        submitting || !acceptedTerms ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-100 transform hover:scale-105 active:scale-95'
       }`}
     >
       {submitting
@@ -715,7 +844,7 @@ export default function BookingCheckoutPage() {
     </button>
 
     <p className="mt-4 text-xs text-gray-400 text-center">
-      By completing your booking, you agree to receive related notifications
+      Payment is available after you agree to the Terms & Policies.
     </p>
   </>
 )}
@@ -729,7 +858,7 @@ export default function BookingCheckoutPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowPolicyModal(false)} />
           <div className="relative w-full max-w-2xl bg-white rounded-2xl p-6 sm:p-8 shadow-xl border border-gray-200 max-h-[80vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-4 mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">Cancellation Policy</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Terms & Conditions</h2>
               <button
                 type="button"
                 onClick={() => setShowPolicyModal(false)}
@@ -740,27 +869,26 @@ export default function BookingCheckoutPage() {
               </button>
             </div>
 
-            <div className="space-y-5 text-sm text-gray-700">
-              <div>
-                <h3 className="font-bold text-gray-900 mb-2">CANCELLATION & RESCHEDULING POLICY</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>Cancellations and rescheduling are allowed up to 3 hours before the scheduled class.</li>
-                  <li>Requests made after this period will not be accepted.</li>
-                </ul>
+            <div className="space-y-5 text-sm leading-relaxed text-gray-700">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <h3 className="font-bold text-gray-900 mb-2">Shared Studio Experience</h3>
+                <p>
+                  I understand that Sceneo Studio is a shared space and multiple bookings may occur during the same time slot. Access to specific curated scenes, backdrops, and props is subject to availability and cannot be guaranteed, as they may be occupied by other guests. I agree to be respectful and considerate of fellow guests and to handle all studio facilities and equipment with care.
+                </p>
               </div>
 
-              <div>
-                <h3 className="font-bold text-gray-900 mb-2">NO-SHOW POLICY</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>If a participant does not show up in the studio without prior notice (a &quot;no-show&quot;), no refunds or rescheduling will be provided.</li>
-                </ul>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <h3 className="font-bold text-gray-900 mb-2">Booking, Rescheduling, and Refund Policy</h3>
+                <p>
+                  I understand that Soft Opening rates are promotional and heavily discounted. All bookings are strictly non-refundable and non-cancellable. However, I may request to reschedule my session up to three (3) hours before my scheduled time, subject to availability, for a maximum of three (3) rebookings per reservation. Failure to appear or to request rescheduling at least three (3) hours before the session shall result in forfeiture of the booking and all payments made.
+                </p>
               </div>
 
-              <div>
-                <h3 className="font-bold text-gray-900 mb-2">REFUND</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>No refunds will be provided for late cancellations or no-shows.</li>
-                </ul>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <h3 className="font-bold text-gray-900 mb-2">Studio Policies and Acknowledgment</h3>
+                <p>
+                  I agree to complete my session within my reserved time slot. Additional time is subject to availability and corresponding fees. Sceneo Studio reserves the right to refuse service, terminate a session without refund, or charge for any damages resulting from inappropriate, unsafe, disruptive behavior, or negligence. By proceeding with this booking, I acknowledge that I have read, understood, and agreed to these Terms & Conditions.
+                </p>
               </div>
             </div>
 

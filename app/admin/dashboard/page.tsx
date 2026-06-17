@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Users, DollarSign, TrendingUp, LogOut, Eye, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Users, DollarSign, TrendingUp, LogOut, Eye, EyeOff, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight, Plus, Trash2, TicketPercent, LockKeyhole } from 'lucide-react';
 import { api } from '@/network';
 
 interface Booking {
@@ -87,6 +87,20 @@ interface ProviderSchedule {
   providers?: Provider;
 }
 
+interface PromoCode {
+  id: number;
+  code: string;
+  description?: string | null;
+  discount_type: 'fixed_price' | 'amount_off' | 'percent_off';
+  discount_value: number | string;
+  booking_types: string[];
+  start_at?: string | null;
+  end_at?: string | null;
+  max_uses?: number | null;
+  used_count: number;
+  is_active: boolean;
+}
+
 interface AdminUser {
   id?: number;
   email?: string;
@@ -161,6 +175,25 @@ const formatServiceTypeLabel = (serviceType?: string) => {
   }
 };
 
+const formatDateTimeLocal = (value?: string | null) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+};
+
+const formatPromoWindow = (value?: string | null) => {
+  if (!value) return 'No limit';
+  return new Date(value).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
 const mapApiBookingToBooking = (booking: ApiBooking): Booking => ({
   id: String(booking.id),
   rawDate: booking.booking_date,
@@ -183,7 +216,7 @@ const mapApiBookingToBooking = (booking: ApiBooking): Booking => ({
 export default function AdminDashboard() {
   const router = useRouter();
   const [admin, setAdmin] = useState<AdminUser | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'availability' | 'providers'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'availability' | 'providers' | 'promos'>('overview');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [dateFilter, setDateFilter] = useState<string>(''); // Empty string means show all dates
@@ -230,6 +263,25 @@ export default function AdminDashboard() {
     end_date: '',
     start_time: '08:00',
     end_time: '17:00',
+  });
+  const [promoUnlocked, setPromoUnlocked] = useState(false);
+  const [promoAdminToken, setPromoAdminToken] = useState('');
+  const [promoUnlockPassword, setPromoUnlockPassword] = useState('');
+  const [showPromoUnlockPassword, setShowPromoUnlockPassword] = useState(false);
+  const [promoUnlocking, setPromoUnlocking] = useState(false);
+  const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
+  const [promosLoading, setPromosLoading] = useState(false);
+  const [editingPromoId, setEditingPromoId] = useState<number | null>(null);
+  const [promoForm, setPromoForm] = useState({
+    code: '',
+    description: '',
+    discount_type: 'fixed_price',
+    discount_value: '88',
+    booking_types: ['professional_slots'],
+    start_at: '',
+    end_at: '',
+    max_uses: '',
+    is_active: true,
   });
   const [editingProviderId, setEditingProviderId] = useState<number | null>(null);
   const selectedProvider = providers.find(provider => provider.id === selectedProviderId) || null;
@@ -415,6 +467,158 @@ export default function AdminDashboard() {
       await fetchProviders();
     } catch {
       showConfirmation('Failed to delete provider.', 'error');
+    }
+  };
+
+  const getPromoAdminHeaders = (token = promoAdminToken) => ({
+    'x-promo-admin-token': token,
+  });
+
+  const fetchPromoCodes = async (token = promoAdminToken) => {
+    if (!token) return;
+
+    try {
+      setPromosLoading(true);
+      const result = await api.get<{ success: boolean; data?: PromoCode[] }>('/admin/promos', {
+        requiresAuth: true,
+        headers: getPromoAdminHeaders(token),
+      });
+      setPromoCodes(Array.isArray(result.data) ? result.data : []);
+    } catch {
+      setPromoUnlocked(false);
+      setPromoAdminToken('');
+      showConfirmation('Promo manager session expired. Please unlock again.', 'error');
+    } finally {
+      setPromosLoading(false);
+    }
+  };
+
+  const handlePromoUnlock = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!promoUnlockPassword) {
+      showConfirmation('Please enter the owner password.', 'error');
+      return;
+    }
+
+    try {
+      setPromoUnlocking(true);
+      const result = await api.post<{ success: boolean; data?: { token?: string }; message?: string }>('/admin/promos/unlock', {
+        password: promoUnlockPassword,
+      }, { requiresAuth: true });
+
+      const token = result.data?.token;
+      if (!result.success || !token) {
+        throw new Error(result.message || 'Unable to unlock promo manager.');
+      }
+
+      setPromoAdminToken(token);
+      setPromoUnlocked(true);
+      setPromoUnlockPassword('');
+      showConfirmation('Promo manager unlocked.', 'success');
+      await fetchPromoCodes(token);
+    } catch {
+      showConfirmation('Invalid owner password.', 'error');
+    } finally {
+      setPromoUnlocking(false);
+    }
+  };
+
+  const resetPromoForm = () => {
+    setEditingPromoId(null);
+    setPromoForm({
+      code: '',
+      description: '',
+      discount_type: 'fixed_price',
+      discount_value: '88',
+      booking_types: ['professional_slots'],
+      start_at: '',
+      end_at: '',
+      max_uses: '',
+      is_active: true,
+    });
+  };
+
+  const handlePromoBookingTypeToggle = (bookingType: string) => {
+    setPromoForm((prev) => {
+      const exists = prev.booking_types.includes(bookingType);
+      const bookingTypes = exists
+        ? prev.booking_types.filter((type) => type !== bookingType)
+        : [...prev.booking_types, bookingType];
+      return { ...prev, booking_types: bookingTypes.length ? bookingTypes : ['professional_slots'] };
+    });
+  };
+
+  const buildPromoPayload = () => ({
+    code: promoForm.code.trim().toUpperCase(),
+    description: promoForm.description.trim() || null,
+    discount_type: promoForm.discount_type,
+    discount_value: Number(promoForm.discount_value),
+    booking_types: promoForm.booking_types,
+    start_at: promoForm.start_at ? new Date(promoForm.start_at).toISOString() : null,
+    end_at: promoForm.end_at ? new Date(promoForm.end_at).toISOString() : null,
+    max_uses: promoForm.max_uses ? Number(promoForm.max_uses) : null,
+    is_active: promoForm.is_active,
+  });
+
+  const handlePromoSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!promoForm.code.trim() || !promoForm.discount_value) {
+      showConfirmation('Please enter a promo code and discount value.', 'error');
+      return;
+    }
+
+    try {
+      const payload = buildPromoPayload();
+      if (editingPromoId) {
+        await api.put(`/admin/promos/${editingPromoId}`, payload, {
+          requiresAuth: true,
+          headers: getPromoAdminHeaders(),
+        });
+        showConfirmation('Promo code updated.', 'success');
+      } else {
+        await api.post('/admin/promos', payload, {
+          requiresAuth: true,
+          headers: getPromoAdminHeaders(),
+        });
+        showConfirmation('Promo code created.', 'success');
+      }
+
+      resetPromoForm();
+      await fetchPromoCodes();
+    } catch {
+      showConfirmation('Failed to save promo code.', 'error');
+    }
+  };
+
+  const handleEditPromo = (promo: PromoCode) => {
+    setEditingPromoId(promo.id);
+    setPromoForm({
+      code: promo.code,
+      description: promo.description || '',
+      discount_type: promo.discount_type,
+      discount_value: String(promo.discount_value),
+      booking_types: promo.booking_types?.length ? promo.booking_types : ['professional_slots'],
+      start_at: formatDateTimeLocal(promo.start_at),
+      end_at: formatDateTimeLocal(promo.end_at),
+      max_uses: promo.max_uses ? String(promo.max_uses) : '',
+      is_active: promo.is_active,
+    });
+  };
+
+  const handleDeletePromo = async (promoId: number) => {
+    if (!confirm('Delete this promo code?')) return;
+
+    try {
+      await api.delete(`/admin/promos/${promoId}`, {
+        requiresAuth: true,
+        headers: getPromoAdminHeaders(),
+      });
+      showConfirmation('Promo code deleted.', 'success');
+      await fetchPromoCodes();
+    } catch {
+      showConfirmation('Failed to delete promo code.', 'error');
     }
   };
 
@@ -692,6 +896,14 @@ export default function AdminDashboard() {
             }`}
           >
             Providers
+          </button>
+          <button
+            onClick={() => setActiveTab('promos')}
+            className={`flex-1 min-w-[120px] px-6 py-3 rounded-lg font-bold transition-all ${
+              activeTab === 'promos' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+            }`}
+          >
+            Promo Codes
           </button>
         </div>
 
@@ -1495,6 +1707,260 @@ export default function AdminDashboard() {
                 </button>
               </form>
             </div>
+          </div>
+        )}
+
+        {/* Promo Codes Tab */}
+        {activeTab === 'promos' && (
+          <div className="space-y-6">
+            {!promoUnlocked ? (
+              <div className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-950 text-white">
+                    <LockKeyhole size={22} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-700">Owner Access</p>
+                    <h2 className="text-2xl font-black text-slate-950">Unlock Promo Manager</h2>
+                    <p className="text-sm text-slate-600">Enter the owner password to manage promo codes.</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handlePromoUnlock} className="space-y-4">
+                  <div className="relative">
+                    <input
+                      type={showPromoUnlockPassword ? 'text' : 'password'}
+                      value={promoUnlockPassword}
+                      onChange={(event) => setPromoUnlockPassword(event.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 pr-12 font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                      placeholder="Owner password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPromoUnlockPassword((value) => !value)}
+                      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-950"
+                      aria-label={showPromoUnlockPassword ? 'Hide owner password' : 'Show owner password'}
+                    >
+                      {showPromoUnlockPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={promoUnlocking}
+                    className="w-full rounded-lg bg-slate-950 px-4 py-3 font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {promoUnlocking ? 'Unlocking...' : 'Unlock Promo Manager'}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div className="lg:col-span-2 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Promo Codes</p>
+                      <h2 className="text-2xl font-black text-slate-950">Active Promo Library</h2>
+                      <p className="text-sm text-slate-600">Create, edit, deactivate, or remove promo codes for checkout.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fetchPromoCodes()}
+                      className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  {promosLoading ? (
+                    <p className="text-sm font-semibold text-slate-600">Loading promo codes...</p>
+                  ) : promoCodes.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+                      <TicketPercent size={44} className="mx-auto mb-3 text-slate-300" />
+                      <p className="font-semibold text-slate-600">No promo codes yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {promoCodes.map((promo) => (
+                        <div key={promo.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-lg font-black text-slate-950">{promo.code}</p>
+                                <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                                  promo.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'
+                                }`}>
+                                  {promo.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm text-slate-600">{promo.description || 'No description'}</p>
+                              <div className="mt-3 grid gap-2 text-xs font-bold text-slate-600 sm:grid-cols-2">
+                                <span>Discount: {promo.discount_type.replaceAll('_', ' ')} - {Number(promo.discount_value).toLocaleString()}</span>
+                                <span>Uses: {promo.used_count}{promo.max_uses ? ` / ${promo.max_uses}` : ''}</span>
+                                <span>Starts: {formatPromoWindow(promo.start_at)}</span>
+                                <span>Ends: {formatPromoWindow(promo.end_at)}</span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleEditPromo(promo)}
+                                className="rounded-lg bg-blue-100 px-3 py-2 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-200"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePromo(promo.id)}
+                                className="rounded-lg bg-red-100 px-3 py-2 text-xs font-bold text-red-700 transition-colors hover:bg-red-200"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="h-fit rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="mb-4">
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Promo Form</p>
+                    <h2 className="text-2xl font-black text-slate-950">{editingPromoId ? 'Update Promo' : 'Add Promo'}</h2>
+                  </div>
+
+                  <form onSubmit={handlePromoSubmit} className="space-y-4">
+                    <div>
+                      <label className="mb-1 block text-sm font-bold text-slate-700">Code</label>
+                      <input
+                        value={promoForm.code}
+                        onChange={(event) => setPromoForm(prev => ({ ...prev, code: event.target.value.toUpperCase() }))}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold uppercase focus:border-slate-950 focus:bg-white focus:outline-none"
+                        placeholder="GRAND88"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-sm font-bold text-slate-700">Description</label>
+                      <input
+                        value={promoForm.description}
+                        onChange={(event) => setPromoForm(prev => ({ ...prev, description: event.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        placeholder="Grand opening promo"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Discount Type</label>
+                        <select
+                          value={promoForm.discount_type}
+                          onChange={(event) => setPromoForm(prev => ({ ...prev, discount_type: event.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        >
+                          <option value="fixed_price">Fixed price</option>
+                          <option value="amount_off">Amount off</option>
+                          <option value="percent_off">Percent off</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Value</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={promoForm.discount_value}
+                          onChange={(event) => setPromoForm(prev => ({ ...prev, discount_value: event.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-700">Booking Types</label>
+                      <div className="space-y-2 rounded-lg bg-slate-50 p-3">
+                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={promoForm.booking_types.includes('professional_slots')}
+                            onChange={() => handlePromoBookingTypeToggle('professional_slots')}
+                          />
+                          Studio Slot
+                        </label>
+                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={promoForm.booking_types.includes('whole_studio')}
+                            onChange={() => handlePromoBookingTypeToggle('whole_studio')}
+                          />
+                          Whole Studio
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Start</label>
+                        <input
+                          type="datetime-local"
+                          value={promoForm.start_at}
+                          onChange={(event) => setPromoForm(prev => ({ ...prev, start_at: event.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">End</label>
+                        <input
+                          type="datetime-local"
+                          value={promoForm.end_at}
+                          onChange={(event) => setPromoForm(prev => ({ ...prev, end_at: event.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-sm font-bold text-slate-700">Max Uses</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={promoForm.max_uses}
+                        onChange={(event) => setPromoForm(prev => ({ ...prev, max_uses: event.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        placeholder="Leave blank for unlimited"
+                      />
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={promoForm.is_active}
+                        onChange={(event) => setPromoForm(prev => ({ ...prev, is_active: event.target.checked }))}
+                      />
+                      Active
+                    </label>
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="submit"
+                        className="flex-1 rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-slate-800"
+                      >
+                        {editingPromoId ? 'Update Promo' : 'Add Promo'}
+                      </button>
+                      {editingPromoId && (
+                        <button
+                          type="button"
+                          onClick={resetPromoForm}
+                          className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
