@@ -3,13 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Calendar, Clock3, Receipt, RefreshCw, Sparkles } from 'lucide-react';
+import { Calendar, CalendarClock, Clock3, CreditCard, Receipt, RefreshCw, Sparkles } from 'lucide-react';
 import { api } from '@/network';
 import { useAuth } from '@/lib/authContext';
 import { useCart } from '@/lib/cartContext';
 import { useToast } from '@/lib/toastContext';
 import { xenditService } from '@/network/services/xenditService';
-import { clearPendingPaymentBooking, getPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
+import { clearPendingPaymentBooking, getPendingPaymentBooking, setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
+import { paymongoService } from '@/network/services/paymongoService';
+import { PAYMENT_STORAGE_EVENT } from '@/components/GlobalPaymentMonitor';
+import { filterSlotsByBookingType, getSlotsForDate, isSlotTooClose, TimeSlot } from '@/lib/timeSlots';
 
 type BookingStatus = 'pending' | 'paid' | 'completed' | 'cancelled';
 
@@ -35,14 +38,23 @@ type ApiBooking = {
 type HistoryBooking = {
   id: string;
   type: string;
+  bookingType: 'professional_slots' | 'whole_studio';
   rawDate: string;
   rawTime: string;
   date: string;
   time: string;
   status: BookingStatus;
   price: string;
+  priceAmount: number;
   provider?: string;
   createdAt: string;
+};
+
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const formatDate = (value?: string) => {
@@ -78,19 +90,25 @@ const normalizeStatus = (status?: string): BookingStatus => {
 };
 
 const toHistoryBooking = (booking: ApiBooking): HistoryBooking => {
-  const bookingType = booking.booking_type === 'whole_studio' || booking.booking_type === 'Whole Studio'
+  const normalizedBookingType = booking.booking_type === 'whole_studio' || booking.booking_type === 'Whole Studio'
+    ? 'whole_studio'
+    : 'professional_slots';
+  const bookingType = normalizedBookingType === 'whole_studio'
     ? 'Whole Studio'
     : 'Studio Slot';
+  const priceAmount = Number(booking.booking_price || 0);
 
   return {
     id: String(booking.id),
     type: bookingType,
+    bookingType: normalizedBookingType,
     rawDate: booking.booking_date || '',
     rawTime: booking.booking_time || '',
     date: formatDate(booking.booking_date),
     time: formatTime(booking.booking_time),
     status: normalizeStatus(booking.booking_status),
-    price: `PHP ${Number(booking.booking_price || 0).toLocaleString()}`,
+    price: `PHP ${priceAmount.toLocaleString()}`,
+    priceAmount,
     provider: booking.booking_addons?.length
       ? booking.booking_addons
           .map((addon) => `${addon.service_type || 'Service'}: ${addon.provider_name_snapshot || 'Provider'}`)
@@ -115,6 +133,13 @@ export default function BookingsHistoryPage() {
   const [trackedPaymentInvoiceId, setTrackedPaymentInvoiceId] = useState<string | null>(null);
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState(false);
   const [paymentPolling, setPaymentPolling] = useState(false);
+  const [payingBookingId, setPayingBookingId] = useState<string | null>(null);
+  const [rescheduleModal, setRescheduleModal] = useState<HistoryBooking | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState(formatLocalDate(new Date()));
+  const [rescheduleSlots, setRescheduleSlots] = useState<TimeSlot[]>([]);
+  const [selectedRescheduleSlotId, setSelectedRescheduleSlotId] = useState('');
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduling, setRescheduling] = useState(false);
 
   const parseBookingDateTime = (booking: HistoryBooking): Date | null => {
     if (!booking.rawDate || !booking.rawTime) return null;
@@ -142,6 +167,24 @@ export default function BookingsHistoryPage() {
     const bookingDateTime = parseBookingDateTime(booking);
     if (!bookingDateTime) return false;
     return bookingDateTime.getTime() < Date.now();
+  };
+
+  const getBookingTypeQueryValue = (booking: HistoryBooking) => (
+    booking.bookingType === 'whole_studio' ? 'studio' : 'professional'
+  );
+
+  const parseDisplayTimeToDatabaseTime = (value: string) => {
+    const match = value.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!match) return value;
+
+    let hours = Number(match[1]);
+    const minutes = match[2];
+    const period = match[3].toUpperCase();
+
+    if (period === 'AM' && hours === 12) hours = 0;
+    if (period === 'PM' && hours !== 12) hours += 12;
+
+    return `${String(hours).padStart(2, '0')}:${minutes}:00`;
   };
 
   const loadBookings = async (isRefresh = false) => {
@@ -363,6 +406,149 @@ export default function BookingsHistoryPage() {
     }
   };
 
+  const handlePayPendingBooking = async (booking: HistoryBooking) => {
+    const paymentWindow = typeof window !== 'undefined' ? window.open('', '_blank') : null;
+
+    if (!paymentWindow) {
+      showToast('Please allow pop-ups so PayMongo checkout can open in a new tab.', 'error');
+      return;
+    }
+
+    try {
+      setPayingBookingId(booking.id);
+      const successUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(booking.id)}`;
+      const paymentLink = await paymongoService.createPaymentLink({
+        booking_id: booking.id,
+        amount: booking.priceAmount,
+        currency: 'PHP',
+        description: `Sceneo Studio booking ${booking.rawDate} ${booking.rawTime}`,
+        return_url: successUrl,
+      });
+
+      const checkoutUrl = paymentLink.checkout_url || paymentLink.attributes?.checkout_url;
+      if (!checkoutUrl) {
+        paymentWindow.close();
+        showToast('Unable to open QRPH payment link. Please try again.', 'error');
+        return;
+      }
+
+      setPendingPaymentBooking({
+        bookingId: booking.id,
+        paymentLinkId: paymentLink.id,
+        paymentLinkUrl: checkoutUrl,
+        createdAt: new Date().toISOString(),
+      });
+      window.dispatchEvent(new Event(PAYMENT_STORAGE_EVENT));
+
+      paymentWindow.location.href = checkoutUrl;
+      paymentWindow.focus();
+      showToast('Payment link opened in a new tab.', 'success');
+    } catch (error) {
+      paymentWindow.close();
+      showToast(error instanceof Error ? error.message : 'Unable to create payment link.', 'error');
+    } finally {
+      setPayingBookingId(null);
+    }
+  };
+
+  const openRescheduleModal = (booking: HistoryBooking) => {
+    if (isPastBooking(booking)) {
+      showToast('This booking has already passed and can no longer be rescheduled.', 'error');
+      return;
+    }
+
+    if (isInsideCancellationWindow(booking)) {
+      showToast('Rescheduling is not allowed within 3 hours of the booking time.', 'error');
+      return;
+    }
+
+    setRescheduleModal(booking);
+    setRescheduleDate(booking.rawDate || formatLocalDate(new Date()));
+    setSelectedRescheduleSlotId('');
+  };
+
+  useEffect(() => {
+    if (!rescheduleModal || !rescheduleDate) return;
+
+    let cancelled = false;
+
+    const loadRescheduleSlots = async () => {
+      try {
+        setRescheduleLoading(true);
+        setSelectedRescheduleSlotId('');
+
+        const selectedDate = new Date(`${rescheduleDate}T00:00:00`);
+        const slots = await getSlotsForDate(rescheduleDate);
+        const filteredSlots = filterSlotsByBookingType(slots, getBookingTypeQueryValue(rescheduleModal))
+          .filter((slot) => (slot.capacity ?? 0) > 0)
+          .filter((slot) => !isSlotTooClose(slot, selectedDate));
+
+        if (!cancelled) {
+          setRescheduleSlots(filteredSlots);
+        }
+      } catch {
+        if (!cancelled) {
+          setRescheduleSlots([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setRescheduleLoading(false);
+        }
+      }
+    };
+
+    loadRescheduleSlots();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rescheduleDate, rescheduleModal]);
+
+  const confirmRescheduleBooking = async () => {
+    if (!rescheduleModal || !selectedRescheduleSlotId) {
+      showToast('Please choose a new available time slot.', 'error');
+      return;
+    }
+
+    const selectedSlot = rescheduleSlots.find((slot) => slot.id === selectedRescheduleSlotId);
+    if (!selectedSlot) {
+      showToast('Selected time slot is no longer available.', 'error');
+      return;
+    }
+
+    try {
+      setRescheduling(true);
+      const nextTime = parseDisplayTimeToDatabaseTime(selectedSlot.startTime);
+
+      await api.put(`/bookings/${rescheduleModal.id}`, {
+        booking_date: rescheduleDate,
+        booking_time: nextTime,
+        booking_type: rescheduleModal.bookingType,
+        booking_status: 'paid',
+      }, { requiresAuth: true });
+
+      setBookings((prev) => prev.map((booking) => (
+        booking.id === rescheduleModal.id
+          ? {
+              ...booking,
+              rawDate: rescheduleDate,
+              rawTime: nextTime,
+              date: formatDate(rescheduleDate),
+              time: formatTime(nextTime),
+              status: 'paid',
+            }
+          : booking
+      )));
+
+      setRescheduleModal(null);
+      showToast('Booking rescheduled successfully. No new payment needed.', 'success');
+    } catch {
+      showToast('Unable to reschedule booking right now. Please try again.', 'error');
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#e5e7eb] pt-28">
       <div className="mx-auto max-w-6xl px-4 pb-14 sm:px-6 lg:px-8">
@@ -505,17 +691,42 @@ export default function BookingsHistoryPage() {
                 )}
 
                 {(booking.status === 'pending' || booking.status === 'paid') && !isPastBooking(booking) && (
-                  <div className="mt-5 pt-4 border-t border-slate-200 flex items-center justify-between gap-3">
+                  <div className="mt-5 border-t border-slate-200 pt-4">
                       <p className="max-w-xl text-xs text-slate-500">
-                      Cancellation allowed only up to 3 hours before booking time.
+                      Pending bookings can still be paid. Paid bookings may be rescheduled up to 3 hours before booking time without paying again.
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => requestCancelBooking(booking)}
-                        className="whitespace-nowrap rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
-                    >
-                      Cancel Booking
-                    </button>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      {booking.status === 'pending' && (
+                        <button
+                          type="button"
+                          onClick={() => handlePayPendingBooking(booking)}
+                          disabled={payingBookingId === booking.id}
+                          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <CreditCard className="h-4 w-4" />
+                          {payingBookingId === booking.id ? 'Opening Payment...' : 'Pay Now'}
+                        </button>
+                      )}
+                      {booking.status === 'paid' && (
+                        <button
+                          type="button"
+                          onClick={() => openRescheduleModal(booking)}
+                          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-700"
+                        >
+                          <CalendarClock className="h-4 w-4" />
+                          Reschedule Booking
+                        </button>
+                      )}
+                      {booking.status === 'pending' && (
+                        <button
+                          type="button"
+                          onClick={() => requestCancelBooking(booking)}
+                          className="whitespace-nowrap rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+                        >
+                          Cancel Booking
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -555,6 +766,90 @@ export default function BookingsHistoryPage() {
                   className="flex-1 px-4 py-3 rounded-lg bg-rose-600 text-white font-semibold hover:bg-rose-700 disabled:opacity-60"
                 >
                   {cancelling ? 'Cancelling...' : 'Confirm Cancel'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {rescheduleModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4 py-6 backdrop-blur-sm">
+            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+              <div className="mb-5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">No extra payment needed</p>
+                <h3 className="mt-1 text-2xl font-black text-slate-950">Reschedule Booking #{rescheduleModal.id}</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Choose a new available time slot for your paid booking. Your payment stays attached to this booking.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-bold text-slate-900">Current schedule</p>
+                <p className="mt-1 text-sm text-slate-600">{rescheduleModal.date} at {rescheduleModal.time}</p>
+              </div>
+
+              <div className="mt-5">
+                <label className="mb-2 block text-sm font-bold text-slate-700">New date</label>
+                <input
+                  type="date"
+                  min={formatLocalDate(new Date())}
+                  value={rescheduleDate}
+                  onChange={(event) => setRescheduleDate(event.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-900 focus:border-slate-950 focus:outline-none"
+                />
+              </div>
+
+              <div className="mt-5">
+                <p className="mb-2 text-sm font-bold text-slate-700">New time slot</p>
+                {rescheduleLoading ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-600">
+                    Loading available slots...
+                  </div>
+                ) : rescheduleSlots.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">
+                    No available slots for this date. Please choose another date.
+                  </div>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {rescheduleSlots.map((slot) => (
+                      <button
+                        key={slot.id}
+                        type="button"
+                        onClick={() => setSelectedRescheduleSlotId(slot.id)}
+                        className={`rounded-lg border p-3 text-left transition ${
+                          selectedRescheduleSlotId === slot.id
+                            ? 'border-slate-950 bg-slate-950 text-white'
+                            : 'border-slate-200 bg-white text-slate-800 hover:border-slate-400'
+                        }`}
+                      >
+                        <p className="font-black">{slot.displayTime}</p>
+                        <p className={`text-xs ${
+                          selectedRescheduleSlotId === slot.id ? 'text-white/75' : 'text-slate-500'
+                        }`}>
+                          {slot.capacity ?? 0} {(slot.capacity ?? 0) === 1 ? 'slot' : 'slots'} available
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => setRescheduleModal(null)}
+                  disabled={rescheduling}
+                  className="flex-1 rounded-lg bg-slate-100 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                >
+                  Keep Current Schedule
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmRescheduleBooking}
+                  disabled={rescheduling || !selectedRescheduleSlotId}
+                  className="flex-1 rounded-lg bg-teal-600 px-4 py-3 font-semibold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {rescheduling ? 'Rescheduling...' : 'Confirm Reschedule'}
                 </button>
               </div>
             </div>
