@@ -94,9 +94,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const mappedItems = (cart?.items || []).map(mapApiItemToCartItem);
       setItems(mappedItems);
     } catch {
-      showToast('Unable to load cart right now.', 'error');
+      setItems([]);
     }
-  }, [isAuthenticated, mapApiItemToCartItem, showToast]);
+  }, [isAuthenticated, mapApiItemToCartItem]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
