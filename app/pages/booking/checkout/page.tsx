@@ -10,6 +10,7 @@ import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
 import { PAYMENT_STORAGE_EVENT } from '@/components/GlobalPaymentMonitor';
 import { paymongoService } from '@/network/services/paymongoService';
 import { api } from '@/network';
+import { CalendarDays, Camera, Palette, PenTool, Receipt, ShieldCheck } from 'lucide-react';
 
 export default function BookingCheckoutPage() {
   const { items, setIsOpen,updateItem } = useCart();
@@ -82,7 +83,7 @@ export default function BookingCheckoutPage() {
     return new URLSearchParams(window.location.search);
   };
 
-  const goToProviderSelection = (type: 'photographer' | 'makeup_artist') => {
+  const goToProviderSelection = (type: 'photographer' | 'editor' | 'makeup_artist') => {
     const params = getCurrentSearchParams();
     params.set('type', type);
     router.push(`/pages/booking/checkout/select-professional?${params.toString()}`);
@@ -302,7 +303,7 @@ export default function BookingCheckoutPage() {
       }
 
       const amount = bookingPrice;
-      const description = `Sceneo booking ${pendingBookingPayload.booking_date} ${pendingBookingPayload.booking_time}`;
+      const description = `Sceneo Studio booking ${pendingBookingPayload.booking_date} ${pendingBookingPayload.booking_time}`;
       const successUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(String(bookingIdCandidate))}`;
       const paymentLink = await paymongoService.createPaymentLink({
         booking_id: bookingIdCandidate,
@@ -435,9 +436,9 @@ export default function BookingCheckoutPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-700">Sceneo Checkout</p>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-700">Sceneo Studio Checkout</p>
           <h1 className="mt-2 text-3xl sm:text-4xl lg:text-5xl font-black text-slate-950 tracking-tight">Complete Your Booking</h1>
-          <p className="mt-2 text-slate-600">Fill in your details to confirm your studio reservation</p>
+          <p className="mt-2 max-w-2xl text-slate-600">Review your booking, add creative support, and continue to secure QRPH payment.</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
@@ -445,7 +446,15 @@ export default function BookingCheckoutPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Client Details Card */}
             <div className="bg-white rounded-lg p-6 sm:p-8 border border-slate-200 shadow-sm">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Client Details</h2>
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-950 text-white">
+                  <ShieldCheck size={22} />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-700">Step 1</p>
+                  <h2 className="text-2xl font-black text-slate-950">Client Details</h2>
+                </div>
+              </div>
 
               <form id="bookingForm" onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -454,7 +463,7 @@ export default function BookingCheckoutPage() {
                     <input 
                       value={name} 
                       onChange={(e) => setName(e.target.value)} 
-                      className="block w-full rounded-lg border-2 border-gray-200 focus:border-black focus:ring-0 px-4 py-3 transition-colors" 
+                      className="block w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 transition-colors focus:border-slate-950 focus:bg-white focus:ring-0" 
                       placeholder="John Doe" 
                       required 
                     />
@@ -465,7 +474,7 @@ export default function BookingCheckoutPage() {
                       type="email" 
                       value={email} 
                       onChange={(e) => setEmail(e.target.value)} 
-                      className="block w-full rounded-lg border-2 border-gray-200 focus:border-black focus:ring-0 px-4 py-3 transition-colors" 
+                      className="block w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 transition-colors focus:border-slate-950 focus:bg-white focus:ring-0" 
                       placeholder="john@example.com" 
                       required 
                     />
@@ -477,7 +486,7 @@ export default function BookingCheckoutPage() {
                   <input 
                     value={phone} 
                     onChange={(e) => setPhone(formatPhilippinePhoneInput(e.target.value))} 
-                    className="block w-full rounded-lg border-2 border-gray-200 focus:border-black focus:ring-0 px-4 py-3 transition-colors" 
+                    className="block w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 transition-colors focus:border-slate-950 focus:bg-white focus:ring-0" 
                     placeholder="09171234567 or +639171234567"
                     required
                     pattern="^\+639\d{9}$"
@@ -489,7 +498,7 @@ export default function BookingCheckoutPage() {
 
                 <div className="space-y-2">
                   <div className="text-sm font-semibold text-gray-700">Payment Method</div>
-                  <div className="rounded-lg border-2 border-black bg-black px-4 py-3 text-sm font-semibold text-white">
+                  <div className="rounded-lg border border-slate-950 bg-slate-950 px-4 py-3 text-sm font-semibold text-white">
                     QRPH
                   </div>
                   <p className="text-xs text-gray-500">Other payment options are temporarily unavailable.</p>
@@ -502,14 +511,14 @@ export default function BookingCheckoutPage() {
                       type="checkbox" 
                       checked={acceptPolicy} 
                       onChange={(e) => setAcceptPolicy(e.target.checked)} 
-                      className="mt-1 w-5 h-5 rounded border-gray-300 text-black focus:ring-black" 
+                      className="mt-1 h-5 w-5 rounded border-slate-300 text-slate-950 focus:ring-slate-950" 
                     />
                     <span className="text-sm text-gray-700 group-hover:text-gray-900">
                       I have read and agree to the{' '}
                       <button
                         type="button"
                         onClick={() => setShowPolicyModal(true)}
-                        className="text-blue-600 hover:text-blue-700 underline font-semibold"
+                        className="font-semibold text-rose-700 underline hover:text-rose-800"
                       >
                         cancellation policy
                       </button>
@@ -521,38 +530,52 @@ export default function BookingCheckoutPage() {
 
             {/* Add-on Services Card */}
             <div className="bg-white rounded-lg p-6 sm:p-8 border border-slate-200 shadow-sm">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Add-on Services</h2>
-              <p className="text-gray-600 mb-6">Enhance your studio experience with professional add-ons</p>
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-100 text-amber-900">
+                  <Camera size={22} />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">Step 2</p>
+                  <h2 className="text-2xl font-black text-slate-950">Add-on Services</h2>
+                  <p className="text-sm text-slate-600">Enhance your studio experience with professional add-ons.</p>
+                </div>
+              </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <button
                   type="button"
                   onClick={() => goToProviderSelection('photographer')}
-                  className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-6 text-center hover:border-black transition-all duration-300 transform hover:-translate-y-1"
+                  className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-slate-950 hover:bg-white hover:shadow-md"
                 >
-                  <div className="text-4xl mb-3">📸</div>
-                  <h3 className="font-bold text-gray-900 mb-1">Photographer</h3>
-                  <p className="text-xs text-gray-600">Professional photography services</p>
+                  <div className="hidden" aria-hidden="true">icon</div>
+                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-slate-950 text-white">
+                    <Camera size={22} />
+                  </div>
+                  <h3 className="mb-1 font-black text-slate-950">Photographer</h3>
+                  <p className="text-sm text-slate-600">Choose an available photographer for your schedule.</p>
                 </button>
-
                 <button
                   type="button"
-                  onClick={() => undefined}
-                  className="hidden"
+                  onClick={() => goToProviderSelection('editor')}
+                  className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-slate-950 hover:bg-white hover:shadow-md"
                 >
-                  <div className="text-4xl mb-3">✍️</div>
-                  <h3 className="font-bold text-gray-900 mb-1">Editor</h3>
-                  <p className="text-xs text-gray-600">Photo editing & retouching</p>
+                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-teal-100 text-teal-800">
+                    <PenTool size={22} />
+                  </div>
+                  <h3 className="mb-1 font-black text-slate-950">Editor</h3>
+                  <p className="text-sm text-slate-600">Add an editor for photo editing and retouching.</p>
                 </button>
-
                 <button
                   type="button"
                   onClick={() => goToProviderSelection('makeup_artist')}
-                  className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-6 text-center hover:border-black transition-all duration-300 transform hover:-translate-y-1"
+                  className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-slate-950 hover:bg-white hover:shadow-md"
                 >
-                  <div className="text-4xl mb-3">💄</div>
-                  <h3 className="font-bold text-gray-900 mb-1">Make-up Artist</h3>
-                  <p className="text-xs text-gray-600">Professional makeup services</p>
+                  <div className="hidden" aria-hidden="true">icon</div>
+                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-rose-100 text-rose-800">
+                    <Palette size={22} />
+                  </div>
+                  <h3 className="mb-1 font-black text-slate-950">Make-up Artist</h3>
+                  <p className="text-sm text-slate-600">Add a make-up artist matched to your booking time.</p>
                 </button>
               </div>
             </div>
@@ -561,25 +584,37 @@ export default function BookingCheckoutPage() {
           {/* Right - Booking Summary */}
           <aside className="lg:sticky lg:top-8 h-fit">
             <div className="bg-slate-950 rounded-lg p-6 sm:p-8 text-white shadow-lg">
-              <h2 className="text-2xl font-bold mb-6">Booking Summary</h2>
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-slate-950">
+                  <Receipt size={22} />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">Step 3</p>
+                  <h2 className="text-2xl font-black">Booking Summary</h2>
+                </div>
+              </div>
 
               <div className="space-y-4 mb-6">
                 {checkoutItems.length === 0 ? (
-                  <div className="text-center py-8">
-                    <div className="text-5xl mb-3 opacity-50">📅</div>
+                  <div className="py-8 text-center">
+                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-lg bg-white/10 text-white/60">
+                      <CalendarDays size={26} />
+                    </div>
                     <p className="text-gray-400">No bookings yet</p>
                   </div>
                 ) : (
                   checkoutItems.map((it) => (
-                    <div key={it.id} className="bg-white/10 backdrop-blur rounded-xl p-4 border border-white/20">
+                    <div key={it.id} className="rounded-lg border border-white/15 bg-white/10 p-4 backdrop-blur">
   <div className="flex items-start gap-3">
-    <div className="text-2xl flex-shrink-0">📸</div>
+    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-white text-slate-950">
+      <CalendarDays size={20} />
+    </div>
     <div className="flex-grow min-w-0">
       <div className="flex items-start justify-between gap-2">
         <div className="font-semibold text-white text-sm leading-tight">{it.name}</div>
         <div className="font-bold text-white text-sm flex-shrink-0">{it.price}</div>
       </div>
-      <div className="text-sm text-gray-300 mt-1">{it.time} • {it.duration}</div>
+      <div className="text-sm text-gray-300 mt-1">{it.time} / {it.duration}</div>
       <div className="text-sm text-gray-400 mt-1">
         {it.bookingDate ? new Date(it.bookingDate + 'T00:00:00').toLocaleDateString() : 'No date selected'}
       </div>

@@ -53,7 +53,7 @@ export default function HowItWorks() {
 
                 {/* Benefits */}
                 <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-10 shadow-lg border border-white/60">
-                    <h3 className="text-3xl font-bold text-slate-900 mb-8 text-center">Why Book With Sceneo</h3>
+                    <h3 className="text-3xl font-bold text-slate-900 mb-8 text-center">Why Book With Sceneo Studio</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="flex gap-4">
                             <div className="flex-shrink-0 w-12 h-12 bg-indigo-900 rounded-xl flex items-center justify-center">

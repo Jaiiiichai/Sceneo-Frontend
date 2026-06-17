@@ -426,6 +426,7 @@ export default function AdminDashboard() {
     fetchBookings();
     fetchProviders();
     fetchProviderSchedules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   const handleLogout = () => {
@@ -621,7 +622,7 @@ export default function AdminDashboard() {
       <header className="sticky top-0 z-50 bg-transparent px-4 sm:px-6 lg:px-8 pt-4">
         <div className="mx-auto w-full max-w-6xl rounded-2xl border border-white/70 bg-white/35 backdrop-blur-md shadow-lg shadow-slate-900/10 px-4 sm:px-6">
           <div className="h-16 flex items-center justify-between">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">SCENEO ADMIN</h1>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">SCENEO STUDIO ADMIN</h1>
 
             <div className="flex items-center gap-3">
               <div className="hidden sm:block text-right">
@@ -1300,6 +1301,7 @@ export default function AdminDashboard() {
                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
                   >
                     <option value="photography">photography</option>
+                    <option value="editor">editor</option>
                     <option value="make_up_artist">make_up_artist</option>
                   </select>
                 </div>

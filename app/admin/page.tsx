@@ -68,7 +68,7 @@ export default function AdminLoginPage() {
       <div className="max-w-md w-full">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-black text-white mb-2">SCENEO</h1>
+          <h1 className="text-5xl font-black text-white mb-2">SCENEO STUDIO</h1>
           <p className="text-gray-400 text-lg">Admin Panel</p>
         </div>
 

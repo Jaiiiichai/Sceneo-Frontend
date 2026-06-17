@@ -14,7 +14,7 @@ export default function Hero({ setBookingType }: HeroProps) {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-28 md:pt-32 pb-12">
                 <div className="text-center mb-12">
                     <h1 className="text-8xl md:text-9xl font-black text-slate-900 mb-8 tracking-tight">
-                        SCENEO
+                        SCENEO STUDIO
                     </h1>
                     <h2 className="text-3xl md:text-4xl font-bold text-slate-900 leading-tight mb-6 tracking-tight">
                         Your Creative Space Awaits You

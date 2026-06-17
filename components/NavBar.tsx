@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Menu, X, ShoppingCart, LogOut, ChevronDown, CalendarCheck, Building2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCart } from "@/lib/cartContext";
 import { useAuth } from "@/lib/authContext";
 import CartDrawer from "./CartDrawer";
@@ -13,6 +13,7 @@ export default function NavBar() {
     const [open, setOpen] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const pathname = usePathname();
+    const router = useRouter();
     const isHomePage = pathname === '/';
     const isAdminRoute = pathname?.startsWith('/admin');
     const { items, setIsOpen } = useCart();
@@ -39,13 +40,20 @@ export default function NavBar() {
         return null;
     }
 
+    const handleLogout = () => {
+        logout();
+        setShowUserMenu(false);
+        setOpen(false);
+        router.push('/');
+    };
+
     return (
-        <header className={`${isHomePage ? 'absolute top-0 left-0 right-0 z-40' : 'sticky top-0 z-40'} bg-transparent px-4 sm:px-6 lg:px-8 pt-4`}>
+        <header className={`${isHomePage ? 'absolute left-0 right-0 top-0' : 'sticky top-0 bg-[#f7f7f4]'} z-40 px-4 py-4 sm:px-6 lg:px-8`}>
             <nav
-                className={`mx-auto w-full max-w-7xl rounded-lg px-4 sm:px-5 shadow-lg ${
+                className={`mx-auto w-full max-w-7xl rounded-lg px-4 shadow-lg backdrop-blur-xl sm:px-5 ${
                     isHomePage
-                        ? 'border border-white/25 bg-white/16 text-white backdrop-blur-xl shadow-black/10'
-                        : 'border border-slate-200 bg-white/90 text-slate-950 backdrop-blur-xl shadow-slate-900/5'
+                        ? 'border border-white/25 bg-white/18 text-white shadow-black/20'
+                        : 'border border-slate-200 bg-white/95 text-slate-950 shadow-slate-900/5'
                 }`}
             >
                 <div className="h-16 relative flex items-center">
@@ -53,7 +61,7 @@ export default function NavBar() {
                         onClick={() => setOpen(!open)}
                         aria-expanded={open}
                         aria-label="Toggle menu"
-                        className={`md:hidden rounded-lg p-2 ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
+                        className={`rounded-lg p-2 md:hidden ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
                     >
                         {open ? <X size={20} /> : <Menu size={20} />}
                     </button>
@@ -63,7 +71,7 @@ export default function NavBar() {
                             <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${isHomePage ? 'bg-white text-slate-950' : 'bg-slate-950 text-white'}`}>
                                 S
                             </span>
-                            <span>Sceneo</span>
+                            <span>Sceneo Studio</span>
                         </Link>
 
                         <div className="relative group hidden md:block">
@@ -144,10 +152,7 @@ export default function NavBar() {
                                                 My Bookings
                                             </Link>
                                             <button
-                                                onClick={() => {
-                                                    logout();
-                                                    setShowUserMenu(false);
-                                                }}
+                                                onClick={handleLogout}
                                                 className="w-full text-left px-4 py-2 text-red-600 hover:bg-gray-50 flex items-center gap-2"
                                             >
                                                 <LogOut size={16} />
@@ -159,7 +164,7 @@ export default function NavBar() {
                             ) : (
                                 <Link
                                     href="/pages/Auth/login"
-                                    className={`${isHomePage ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'} rounded-lg px-5 py-2.5 font-bold`}
+                                    className="rounded-lg bg-slate-950 px-5 py-2.5 font-bold text-white hover:bg-slate-800"
                                 >
                                     Login
                                 </Link>
@@ -228,10 +233,7 @@ export default function NavBar() {
                                         My Bookings
                                     </Link>
                                     <button
-                                        onClick={() => {
-                                            logout();
-                                            setOpen(false);
-                                        }}
+                                        onClick={handleLogout}
                                         className="w-full text-left py-2 px-3 text-red-600 rounded-md hover:bg-gray-50 flex items-center gap-2"
                                     >
                                         <LogOut size={16} />

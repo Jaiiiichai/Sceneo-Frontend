@@ -24,7 +24,7 @@ export default function BookingPage() {
       <div className="overflow-hidden rounded-lg bg-slate-950 text-white">
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="p-6 sm:p-8 lg:p-10">
-            <p className="text-sm font-black uppercase tracking-[0.22em] text-teal-300">Sceneo Booking</p>
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-teal-300">Sceneo Studio Booking</p>
             <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">Plan your studio session.</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/72 sm:text-lg">
               Choose your date, pick a time, then add available photographers or make-up artists during checkout.
