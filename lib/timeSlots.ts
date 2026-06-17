@@ -34,6 +34,7 @@ interface ApiTimeSlot {
   price: number;
   duration_minutes: number;
   capacity: number;
+  remaining?: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -509,9 +510,28 @@ export async function getSlotsForDay(dayOfWeek: number): Promise<TimeSlot[]> {
  * @param date - Date object or date string
  */
 export async function getSlotsForDate(date: Date | string): Promise<TimeSlot[]> {
+  const bookingDate = formatBookingDate(date);
+
+  try {
+    const response = await api.get('/time-slots', {
+      params: { booking_date: bookingDate },
+    });
+
+    if (response.success && response.data) {
+      return (response.data as ApiTimeSlot[])
+        .filter(slot => slot.is_active)
+        .map(slot => ({
+          ...mapApiTimeSlot(slot),
+          capacity: slot.remaining ?? slot.capacity,
+        }));
+    }
+  } catch {
+    // Fall back to the old merge path below when the date-aware endpoint is unavailable.
+  }
+
   const [apiSlots, availableSlots] = await Promise.all([
     fetchAllTimeSlots(),
-    fetchAvailableSlots(date),
+    fetchAvailableSlots(bookingDate),
   ]);
 
   if (availableSlots.length === 0) {
