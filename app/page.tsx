@@ -20,115 +20,117 @@ const heroImage = 'https://images.unsplash.com/photo-1604014237800-1c9102c219da?
 
 const modelPreviewImages = [
   {
-    src: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=700&q=80',
+    src: '/assets/main8/6.JPG',
     title: 'Portrait Preview',
-    label: 'Soft portrait set',
+    label: 'Sceneo sample set',
+    position: 'center',
   },
   {
-    src: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=700&q=80',
+    src: '/assets/main8/1.jpg',
     title: 'Studio Model',
     label: 'Editorial lighting',
+    position: 'center 18%',
   },
   {
-    src: 'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=700&q=80',
+    src: '/assets/main8/2.jpg',
     title: 'Creative Set',
     label: 'Styled concept',
+    position: 'center 20%',
   },
   {
-    src: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=700&q=80',
+    src: '/assets/main8/3.jpg',
     title: 'Beauty Detail',
     label: 'Close-up mood',
+    position: 'center 16%',
   },
   {
-    src: 'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=700&q=80',
+    src: '/assets/main8/8.JPG',
     title: 'Lifestyle Frame',
     label: 'Natural pose',
+    position: 'center 18%',
   },
   {
-    src: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=700&q=80',
+    src: '/assets/main8/5.JPG',
     title: 'Fresh Portrait',
     label: 'Clean backdrop',
+    position: 'center 16%',
   },
   {
-    src: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=700&q=80',
+    src: '/assets/main8/4.jpg',
     title: 'Soft Glam',
     label: 'Beauty session',
+    position: 'center 18%',
   },
   {
-    src: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=700&q=80',
+    src: '/assets/main8/7.JPG',
     title: 'Classic Look',
     label: 'Profile study',
+    position: 'center 18%',
   },
 ];
 
-const galleryImages = [
+const sceneFolders = [
   {
-    src: 'https://images.unsplash.com/photo-1604014237800-1c9102c219da?auto=format&fit=crop&w=900&q=80',
-    title: 'Portrait Set',
-    description: 'Clean lighting for personal shoots and campaigns.',
-    images: [
-      'https://images.unsplash.com/photo-1604014237800-1c9102c219da?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=1200&q=80',
-    ],
+    folder: 'Scene1-Disco Fever',
+    title: 'Disco Fever',
+    files: ['1.JPG', '2.jpg', '3.jpg', '4.JPG', '5.JPG', '6.JPG', '7.jpg'],
   },
   {
-    src: 'https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?auto=format&fit=crop&w=900&q=80',
-    title: 'Creative Sessions',
-    description: 'Space for photographers, creators, and small teams.',
-    images: [
-      'https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1200&q=80',
-    ],
+    folder: 'Scene2-Crimson Desire',
+    title: 'Crimson Desire',
+    files: ['1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.JPG'],
   },
   {
-    src: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80',
-    title: 'Studio Gear',
-    description: 'Professional equipment ready for your booking.',
-    images: [
-      'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1512790182412-b19e6d62bc39?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=1200&q=80',
-    ],
+    folder: 'Scene3-Timeless Canvas',
+    title: 'Timeless Canvas',
+    files: ['1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg', '7.jpg', '8.jpg'],
   },
   {
-    src: 'https://images.unsplash.com/photo-1526947425960-945c6e72858f?auto=format&fit=crop&w=900&q=80',
-    title: 'Make-up Ready',
-    description: 'Add make-up artists and photo support when needed.',
-    images: [
-      'https://images.unsplash.com/photo-1526947425960-945c6e72858f?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=1200&q=80',
-    ],
+    folder: 'Scene4-Golden Hour',
+    title: 'Golden Hour',
+    files: ['1.jpg', '2.jpg', '3.JPG', '4.JPG'],
   },
   {
-    src: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?auto=format&fit=crop&w=900&q=80',
-    title: 'Product Shoots',
-    description: 'A flexible setup for products, portraits, and content.',
-    images: [
-      'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1526947425960-945c6e72858f?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?auto=format&fit=crop&w=1200&q=80',
-    ],
+    folder: 'Scene5-Secret Garden',
+    title: 'Secret Garden',
+    files: ['1.jpg', '2.jpg', '3.jpg'],
   },
   {
-    src: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=900&q=80',
-    title: 'Full Studio',
-    description: 'Book the whole studio for bigger productions.',
-    images: [
-      'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1604014237800-1c9102c219da?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80',
-    ],
+    folder: 'Scene6-Emerald Woods',
+    title: 'Emerald Woods',
+    files: ['1.JPG', '2.jpg', '3.JPG', '4.jpg'],
+  },
+  {
+    folder: 'Scene7-Celestial Rose',
+    title: 'Celestial Rose',
+    files: ['1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg', '7.jpg'],
+  },
+  {
+    folder: 'Scene8-Barbie',
+    title: 'Barbie',
+    files: ['1.jpg', '2.JPG'],
+  },
+  {
+    folder: 'Scene9-Royal Velvet',
+    title: 'Royal Velvet',
+    files: ['1.JPG'],
+  },
+  {
+    folder: 'Scene10-Botanical Haven',
+    title: 'Botanical Haven',
+    files: ['1.jpg'],
   },
 ];
+
+const galleryImages = sceneFolders.map((scene) => {
+  const paths = scene.files.map((file) => `/assets/scenes/${scene.folder}/${file}`);
+
+  return {
+    title: scene.title,
+    src: paths[0],
+    images: paths.slice(1).length > 0 ? paths.slice(1) : paths,
+  };
+});
 
 const bookingOptions = [
   {
@@ -156,15 +158,35 @@ const serviceHighlights = [
   { icon: Sparkles, label: 'Ready to Create', text: 'A smooth booking flow from selection to payment.' },
 ];
 
-const heroGalleryTileClasses = [
-  'md:col-span-4 md:row-span-3',
-  'md:col-span-3 md:row-span-2',
-  'md:col-span-3 md:row-span-3',
-  'md:col-span-2 md:row-span-2',
-  'md:col-span-3 md:row-span-2',
-  'md:col-span-2 md:row-span-2',
-  'md:col-span-4 md:row-span-2',
-  'md:col-span-3 md:row-span-2',
+const heroGalleryColumns = [
+  {
+    className: 'lg:basis-[32%]',
+    tiles: [
+      { imageIndex: 0, aspect: 'aspect-[16/11]' },
+      { imageIndex: 4, aspect: 'aspect-[4/5]' },
+    ],
+  },
+  {
+    className: 'lg:basis-[23%]',
+    tiles: [
+      { imageIndex: 1, aspect: 'aspect-[4/5]' },
+      { imageIndex: 5, aspect: 'aspect-[3/4]' },
+    ],
+  },
+  {
+    className: 'lg:basis-[26%]',
+    tiles: [
+      { imageIndex: 2, aspect: 'aspect-[4/5]' },
+      { imageIndex: 6, aspect: 'aspect-[16/11]' },
+    ],
+  },
+  {
+    className: 'lg:basis-[19%]',
+    tiles: [
+      { imageIndex: 3, aspect: 'aspect-[4/5]' },
+      { imageIndex: 7, aspect: 'aspect-[4/5]' },
+    ],
+  },
 ];
 
 export default function Home() {
@@ -208,21 +230,27 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-14 grid grid-cols-1 gap-8 md:grid-cols-12 md:auto-rows-[96px] lg:auto-rows-[110px]">
-            {modelPreviewImages.map((image, index) => (
-              <div
-                key={image.title}
-                className={`group relative min-h-[220px] overflow-hidden rounded-lg border border-white/25 bg-white/10 shadow-xl backdrop-blur md:min-h-0 ${heroGalleryTileClasses[index]}`}
-              >
-                <div
-                  className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-[1.04]"
-                  style={{ backgroundImage: `url(${image.src})` }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/70">{image.label}</p>
-                  <h3 className={`${index === 0 ? 'text-2xl' : 'text-lg'} mt-1 font-black`}>{image.title}</h3>
-                </div>
+          <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:flex lg:items-start lg:gap-6">
+            {heroGalleryColumns.map((column, columnIndex) => (
+              <div key={columnIndex} className={`flex min-w-0 flex-col gap-5 lg:gap-6 ${column.className}`}>
+                {column.tiles.map((tile) => {
+                  const image = modelPreviewImages[tile.imageIndex];
+
+                  return (
+                    <div
+                      key={image.title}
+                      className={`group relative overflow-hidden rounded-lg border border-white/25 bg-white/10 shadow-xl backdrop-blur ${tile.aspect}`}
+                    >
+                      <div
+                        className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-[1.04]"
+                        style={{
+                          backgroundImage: `url(${image.src})`,
+                          backgroundPosition: image.position,
+                        }}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
@@ -274,11 +302,11 @@ export default function Home() {
               <h2 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">A gallery ready for your real photos.</h2>
             </div>
             <p className="max-w-xl text-base leading-7 text-slate-600">
-              Click any scene to view more sample photos from that area. Replace the sample URLs with your actual studio photos when they are ready.
+              Click any scene to view more sample photos from that area.
             </p>
           </div>
 
-          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
             {galleryImages.map((image) => (
               <button
                 type="button"
@@ -287,12 +315,11 @@ export default function Home() {
                 className="group overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-left shadow-sm transition hover:-translate-y-1 hover:border-slate-400 hover:shadow-lg"
               >
                 <div
-                  className="h-64 bg-cover bg-center transition duration-500 group-hover:scale-[1.03]"
-                  style={{ backgroundImage: `url(${image.src})` }}
+                  className="aspect-[3/4] bg-cover bg-center transition duration-500 group-hover:scale-[1.03]"
+                  style={{ backgroundImage: `url("${image.src}")` }}
                 />
                 <div className="p-5">
                   <h3 className="text-lg font-black">{image.title}</h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">{image.description}</p>
                   <p className="mt-4 text-sm font-bold text-slate-950">View scene photos</p>
                 </div>
               </button>
@@ -353,7 +380,6 @@ export default function Home() {
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">Scene Gallery</p>
                 <h3 className="mt-1 text-3xl font-black text-slate-950">{selectedScene.title}</h3>
-                <p className="mt-1 text-sm text-slate-600">{selectedScene.description}</p>
               </div>
               <button
                 type="button"
@@ -372,8 +398,8 @@ export default function Home() {
                   className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm"
                 >
                   <div
-                    className="h-64 bg-cover bg-center"
-                    style={{ backgroundImage: `url(${src})` }}
+                    className="aspect-[3/4] bg-cover bg-center"
+                    style={{ backgroundImage: `url("${src}")` }}
                   />
                 </div>
               ))}
