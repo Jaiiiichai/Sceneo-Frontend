@@ -118,9 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userInfo = userData.data || userData.user || userData;
 
       setUser(mapUserFromApi(userInfo));
-    } catch (error) {
-      console.error('Error fetching user on mount:', error);
-    }
+    } catch {}
   }, []);
 
   // Load token from localStorage on mount
@@ -156,13 +154,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const userData = await response.json();
-      console.log('User data fetched:', userData);
 
       const userInfo = userData.data || userData.user || userData;
       setUser(mapUserFromApi(userInfo));
-    } catch (error) {
-      console.error('Error fetching user:', error);
-    }
+    } catch {}
   };
 
   const login = async (email: string, password: string) => {
@@ -174,8 +169,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         body: JSON.stringify({ email, password }),
       });
-      
-      console.log('Login response:', response);
       
       if (!response.ok) {
         const contentType = response.headers.get('content-type') || '';
@@ -201,30 +194,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const userData = await response.json();
-      console.log('Login success - Full response:', userData);
-      console.log('Available fields:', Object.keys(userData));
 
       // Handle nested response structure: { data: { token: "...", user: {...} } }
       const responseData = userData.data || userData;
       const authToken = responseData.token || userData.token || userData.access_token || userData.accessToken;
       const userInfo = responseData.user || userData.user || userData;
       
-      console.log('Token found:', authToken);
-      console.log('User info:', userInfo);
-
       // Store token if present in response
       if (authToken) {
         applyAuthSession(authToken, userInfo);
-        console.log('✅ Token stored in localStorage:', authToken);
       } else {
-        console.warn('⚠️ No token found in response! Response structure:', userData);
       }
 
       setUser(mapUserFromApi(userInfo, email));
 
       showToast('Login successful. Welcome back!', 'success');
     } catch (error) {
-      console.error('Login error:', error);
       throw error; 
     }
   };
@@ -440,16 +425,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }),
       });
 
-      console.log('Signup response:', response);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Signup error response:', errorData);
         throw new Error(errorData.message || `Signup failed with status ${response.status}`);
       }
 
       const userData = await response.json();
-      console.log('Signup success - Full response:', userData);
 
       // Handle nested response structure: { data: { token: "...", user: {...} } }
       const responseData = userData.data || userData;
@@ -459,7 +441,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authToken) {
         applyAuthSession(authToken, userInfo);
         setUser(mapUserFromApi(userInfo, email));
-        console.log('✅ Token stored:', authToken);
       } else {
         // Some backends create user via /users but don't return auth token.
         // Immediately log in so user is actually authenticated after signup.
@@ -468,7 +449,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       showToast('Account created successfully.', 'success');
     } catch (error) {
-      console.error('Signup error:', error);
       throw error;  // Re-throw so the calling component can handle it
     }
   };
@@ -478,7 +458,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('authToken');
     setToken(null);
     setUser(null);
-    console.log('✅ Logged out - token cleared');
     if (!silent) {
       showToast('Logged out successfully.', 'info');
     }
@@ -519,3 +498,4 @@ export function useAuth() {
   }
   return context;
 }
+

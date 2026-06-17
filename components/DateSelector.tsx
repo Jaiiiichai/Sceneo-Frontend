@@ -31,8 +31,7 @@ export default function DateSelector({ onDateSelect, selectedDate }: DateSelecto
           const dates = result.data.map((item: ClosedDate) => item.closed_date);
           setClosedDates(dates);
         }
-      } catch (error) {
-        console.error('Error fetching closed dates:', error);
+      } catch {
       }
     };
 
@@ -108,13 +107,6 @@ export default function DateSelector({ onDateSelect, selectedDate }: DateSelecto
                 key={idx}
                 onClick={() => {
                   if (!dateIsClosed) {
-                    console.log('=== DATE SELECTOR CLICKED ===');
-                    console.log('Date object:', date);
-                    console.log('Date toString:', date.toString());
-                    console.log('Date toDateString:', date.toDateString());
-                    console.log('Date getDate:', date.getDate());
-                    console.log('Date getMonth:', date.getMonth());
-                    console.log('Date getFullYear:', date.getFullYear());
                     onDateSelect(date);
                   }
                 }}
@@ -144,3 +136,4 @@ export default function DateSelector({ onDateSelect, selectedDate }: DateSelecto
     </div>
   );
 }
+

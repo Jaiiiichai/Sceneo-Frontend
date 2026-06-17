@@ -32,8 +32,7 @@ export default function TimeSlotSelection({ selectedDate, onSlotSelect, selected
         const filteredSlots = filterSlotsByBookingType(allSlots, bookingTypeMap);
         
         setTimeSlots(filteredSlots);
-      } catch (error) {
-        console.error('Error fetching time slots:', error);
+      } catch {
         setTimeSlots([]);
       } finally {
         setLoading(false);
@@ -130,3 +129,4 @@ export default function TimeSlotSelection({ selectedDate, onSlotSelect, selected
     </div>
   );
 }
+

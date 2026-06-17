@@ -10,7 +10,7 @@ interface HeroProps {
 
 export default function Hero({ setBookingType }: HeroProps) {
     return (
-        <section className="min-h-screen bg-transparent flex items-center relative overflow-hidden">
+        <section className="min-h-screen bg-[#e5e7eb] flex items-center relative overflow-hidden">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-28 md:pt-32 pb-12">
                 <div className="text-center mb-12">
                     <h1 className="text-8xl md:text-9xl font-black text-slate-900 mb-8 tracking-tight">
@@ -95,3 +95,4 @@ export default function Hero({ setBookingType }: HeroProps) {
         </section>
     );
 }
+

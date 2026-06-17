@@ -176,8 +176,7 @@ export default function BookingsHistoryPage() {
       });
 
       setBookings(ownedBookings.map(toHistoryBooking));
-    } catch (err) {
-      console.error('Failed to load booking history:', err);
+    } catch {
       setError('Unable to load your bookings right now. Please try again.');
       setBookings([]);
     } finally {
@@ -210,8 +209,7 @@ export default function BookingsHistoryPage() {
       try {
         await loadBookings(true);
         showToast('Payment returned. Waiting for PayMongo confirmation...', 'info');
-      } catch (error) {
-        console.error('Failed to refresh booking after payment return:', error);
+      } catch {
         showToast('Payment returned, but we could not refresh your booking yet.', 'error');
       }
     };
@@ -277,8 +275,7 @@ export default function BookingsHistoryPage() {
           }
           return;
         }
-      } catch (pollError) {
-        console.error('Failed to poll payment status:', pollError);
+      } catch {
       }
 
       pollTimeoutId = window.setTimeout(pollPaymentStatus, 5000);
@@ -359,8 +356,7 @@ export default function BookingsHistoryPage() {
 
       showToast('Booking cancelled successfully.', 'success');
       setCancelModal(null);
-    } catch (cancelError) {
-      console.error('Failed to cancel booking:', cancelError);
+    } catch {
       showToast('Unable to cancel booking right now. Please try again.', 'error');
     } finally {
       setCancelling(false);
@@ -368,7 +364,7 @@ export default function BookingsHistoryPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f7f7f4] pt-28">
+    <main className="min-h-screen bg-[#e5e7eb] pt-28">
       <div className="mx-auto max-w-6xl px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mb-6 overflow-hidden rounded-lg bg-slate-950 text-white shadow-lg">
           <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -586,3 +582,6 @@ export default function BookingsHistoryPage() {
     </main>
   );
 }
+
+
+

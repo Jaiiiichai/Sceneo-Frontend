@@ -125,9 +125,7 @@ export default function BookingCheckoutPage() {
       if (isAuthenticated()) {
         try {
           await fetchUser();
-        } catch (error) {
-          console.error('Error fetching user:', error);
-        }
+        } catch {}
       }
     };
     
@@ -336,7 +334,6 @@ export default function BookingCheckoutPage() {
       return;
     } catch (error) {
       paymentWindow.close();
-      console.error('Booking error:', error);
       const message = error instanceof Error ? error.message : 'An error occurred while creating your booking. Please try again.';
       showToast(message, 'error');
     } finally {
@@ -432,7 +429,7 @@ export default function BookingCheckoutPage() {
 };
 
   return (
-    <main className="min-h-screen bg-[#f7f7f4] py-8 pt-28 sm:py-12">
+    <main className="min-h-screen bg-[#e5e7eb] py-8 pt-28 sm:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -782,3 +779,6 @@ export default function BookingCheckoutPage() {
     </main>
   );
 }
+
+
+

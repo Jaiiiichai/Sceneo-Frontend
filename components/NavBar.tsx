@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Menu, X, ShoppingCart, LogOut, ChevronDown, CalendarCheck, Building2 } from "lucide-react";
+import { Menu, X, ShoppingCart, LogOut } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -48,58 +48,42 @@ export default function NavBar() {
     };
 
     return (
-        <header className={`${isHomePage ? 'absolute left-0 right-0 top-0' : 'sticky top-0 bg-[#f7f7f4]'} z-40 px-4 py-4 sm:px-6 lg:px-8`}>
+        <header className={`${isHomePage ? 'absolute left-0 right-0 top-0' : 'sticky top-0 bg-[#e5e7eb]'} z-40 px-4 py-4 sm:px-6 lg:px-8`}>
             <nav
-                className={`mx-auto w-full max-w-7xl rounded-lg px-4 shadow-lg backdrop-blur-xl sm:px-5 ${
-                    isHomePage
-                        ? 'border border-white/25 bg-white/18 text-white shadow-black/20'
-                        : 'border border-slate-200 bg-white/95 text-slate-950 shadow-slate-900/5'
-                }`}
+                className="mx-auto w-full max-w-7xl rounded-lg border border-slate-200 bg-white/95 px-4 text-slate-950 shadow-lg shadow-slate-900/5 backdrop-blur-xl sm:px-5"
             >
                 <div className="h-16 relative flex items-center">
                     <button
                         onClick={() => setOpen(!open)}
                         aria-expanded={open}
                         aria-label="Toggle menu"
-                        className={`rounded-lg p-2 md:hidden ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
+                        className="rounded-lg p-2 text-slate-700 hover:bg-slate-100 md:hidden"
                     >
                         {open ? <X size={20} /> : <Menu size={20} />}
                     </button>
 
                     <div className="flex items-center gap-3 md:gap-6 ml-2 md:ml-0">
-                        <Link href="/" className="flex items-center gap-2 text-xl font-black tracking-tight">
-                            <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${isHomePage ? 'bg-white text-slate-950' : 'bg-slate-950 text-white'}`}>
-                                S
+                        <Link href="/" className="flex items-center">
+                            <span className="flex h-10 w-36 items-center overflow-hidden rounded-lg bg-transparent sm:w-48">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src="/sceneo logo.png?v=logo-refresh"
+                                    alt="Sceneo Studio"
+                                    className="h-auto w-full object-contain"
+                                />
                             </span>
-                            <span>Sceneo Studio</span>
                         </Link>
 
-                        <div className="relative group hidden md:block">
-                            <button
-                                type="button"
-                                className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-bold ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'}`}
-                            >
-                                Book
-                                <ChevronDown size={18} className="mt-0.5" />
-                            </button>
-                            <div className="absolute left-0 top-full pt-2 hidden group-hover:block z-40">
-                                <div className="w-60 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
-                                    <Link
-                                        href="/pages/booking?bookingType=whole_studio"
-                                        className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-950"
-                                    >
-                                        <Building2 size={17} />
-                                        Book Whole Studio
-                                    </Link>
-                                    <Link
-                                        href="/pages/booking?bookingType=slot"
-                                        className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-950"
-                                    >
-                                        <CalendarCheck size={17} />
-                                        Book a Slot
-                                    </Link>
-                                </div>
-                            </div>
+                        <div className="hidden items-center gap-1 md:flex">
+                            <Link href="/#studio-preview" className="rounded-lg px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-950">
+                                Studio Preview
+                            </Link>
+                            <Link href="/pages/booking?bookingType=slot" className="rounded-lg px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-950">
+                                Book a Slot
+                            </Link>
+                            <Link href="/pages/booking?bookingType=whole_studio" className="rounded-lg px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-950">
+                                Whole Studio
+                            </Link>
                         </div>
                     </div>
 
@@ -107,7 +91,7 @@ export default function NavBar() {
                         <div className="hidden md:flex items-center gap-4">
                             <button
                                 onClick={() => setIsOpen(true)}
-                                className={`relative rounded-lg p-2 ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'}`}
+                                className="relative rounded-lg p-2 text-slate-700 hover:bg-slate-100 hover:text-slate-950"
                             >
                                 <ShoppingCart size={24} />
                                 {items.length > 0 && (
@@ -128,7 +112,7 @@ export default function NavBar() {
                                             alt={user.name}
                                             width={40}
                                             height={40}
-                                            className={`h-10 w-10 rounded-full border-2 ${isHomePage ? 'border-white/60' : 'border-slate-200'}`}
+                                            className="h-10 w-10 rounded-full border-2 border-slate-200"
                                         />
                                     </button>
                                     {showUserMenu && (
@@ -175,20 +159,27 @@ export default function NavBar() {
 
                 {/* Mobile menu */}
                 {open && (
-                    <div className={`mt-2 border-t pb-4 md:hidden ${isHomePage ? 'border-white/20' : 'border-slate-200'}`}>
+                    <div className="mt-2 border-t border-slate-200 pb-4 md:hidden">
                         <div className="flex flex-col px-2">
-                            <p className={`px-3 pb-1 pt-3 text-xs font-bold uppercase tracking-wide ${isHomePage ? 'text-white/70' : 'text-slate-500'}`}>Book</p>
+                            <p className="px-3 pb-1 pt-3 text-xs font-bold uppercase tracking-wide text-slate-500">Explore</p>
+                            <Link
+                                href="/#studio-preview"
+                                onClick={() => setOpen(false)}
+                                className="rounded-lg px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                                Studio Preview
+                            </Link>
                             <Link
                                 href="/pages/booking?bookingType=whole_studio"
                                 onClick={() => setOpen(false)}
-                                className={`rounded-lg px-3 py-2 font-semibold ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
+                                className="rounded-lg px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
                             >
                                 Book Whole Studio
                             </Link>
                             <Link
                                 href="/pages/booking?bookingType=slot"
                                 onClick={() => setOpen(false)}
-                                className={`rounded-lg px-3 py-2 font-semibold ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
+                                className="rounded-lg px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
                             >
                                 Book a Slot
                             </Link>
@@ -196,7 +187,7 @@ export default function NavBar() {
                             <Link
                                 href="/pages/booking"
                                 onClick={() => setOpen(false)}
-                                className={`rounded-lg px-3 py-2 font-semibold ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
+                                className="rounded-lg px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
                             >
                                 Browse Studios
                             </Link>
@@ -221,14 +212,14 @@ export default function NavBar() {
                                     <Link
                                         href="/pages/profile"
                                         onClick={() => setOpen(false)}
-                                        className={`rounded-lg px-3 py-2 ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
+                                        className="rounded-lg px-3 py-2 text-slate-700 hover:bg-slate-100"
                                     >
                                         Profile
                                     </Link>
                                     <Link
                                         href="/pages/bookings"
                                         onClick={() => setOpen(false)}
-                                        className={`rounded-lg px-3 py-2 ${isHomePage ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'}`}
+                                        className="rounded-lg px-3 py-2 text-slate-700 hover:bg-slate-100"
                                     >
                                         My Bookings
                                     </Link>
@@ -259,3 +250,5 @@ export default function NavBar() {
         </header>
     );
 }
+
+

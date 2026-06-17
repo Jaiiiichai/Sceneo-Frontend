@@ -93,8 +93,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const cart = await cartService.getCart();
       const mappedItems = (cart?.items || []).map(mapApiItemToCartItem);
       setItems(mappedItems);
-    } catch (error) {
-      console.error('Error loading cart:', error);
+    } catch {
       showToast('Unable to load cart right now.', 'error');
     }
   }, [isAuthenticated, mapApiItemToCartItem, showToast]);
@@ -150,7 +149,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      console.error('Error adding item to cart:', error);
       setItems(prevItems => prevItems.filter(existing => existing.id !== optimisticId));
       showToast('Unable to add item to server cart. Added locally instead.', 'error');
     }
@@ -209,8 +207,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           showToast('Item removed from cart.', 'info');
         }
         return;
-      } catch (error) {
-        console.error('Error updating server cart item quantity:', error);
+      } catch {
         showToast('Unable to update item quantity.', 'error');
       }
     }
@@ -230,8 +227,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         await cartService.removeItem(targetItem.serverItemId);
         return;
-      } catch (error) {
-        console.error('Error removing server cart item:', error);
+      } catch {
         setItems(prevItems => {
           const alreadyRestored = prevItems.some(item => item.id === targetItem.id);
           return alreadyRestored ? prevItems : [...prevItems, targetItem];
@@ -251,8 +247,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         await cartService.clearCart();
         showToast('Cart cleared.', 'info');
-      } catch (error) {
-        console.error('Error clearing server cart:', error);
+      } catch {
         showToast('Unable to clear server cart. Local cart was cleared.', 'error');
       }
     }
@@ -274,3 +269,4 @@ export function useCart() {
   }
   return context;
 }
+

@@ -39,8 +39,7 @@ export default function ProfilePage() {
 
       try {
         await fetchUser();
-      } catch (error) {
-        console.error('Failed to fetch profile:', error);
+      } catch {
       } finally {
         setLoading(false);
       }
@@ -51,7 +50,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f7f7f4] pt-28">
+      <main className="min-h-screen bg-[#e5e7eb] pt-28">
         <div className="mx-auto max-w-4xl px-4 pb-14 sm:px-6 lg:px-8">
           <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-600 shadow-sm">Loading profile...</div>
         </div>
@@ -61,7 +60,7 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[#f7f7f4] pt-28">
+      <main className="min-h-screen bg-[#e5e7eb] pt-28">
         <div className="mx-auto max-w-4xl px-4 pb-14 sm:px-6 lg:px-8">
           <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
             <p className="mb-2 font-semibold text-slate-800">Profile is unavailable.</p>
@@ -83,7 +82,7 @@ export default function ProfilePage() {
     .join('');
 
   return (
-    <main className="min-h-screen bg-[#f7f7f4] pt-28">
+    <main className="min-h-screen bg-[#e5e7eb] pt-28">
       <div className="mx-auto max-w-5xl px-4 pb-14 sm:px-6 lg:px-8">
         <section className="overflow-hidden rounded-lg bg-slate-950 text-white shadow-lg">
           <div className="grid gap-6 p-6 sm:p-8 md:grid-cols-[auto_1fr] md:items-center">
@@ -141,3 +140,6 @@ export default function ProfilePage() {
     </main>
   );
 }
+
+
+

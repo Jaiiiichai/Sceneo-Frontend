@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import NavBar from "@/components/NavBar";
-import UserIridescenceBackground from "@/components/UserIridescenceBackground";
-import { CartProvider } from "@/lib/cartContext";
-import { BookingTypeProvider } from "@/lib/bookingContext";
-import { AuthProvider } from "@/lib/authContext";
 import { ToastProvider } from "@/lib/toastContext";
-import GlobalPaymentMonitor from "@/components/GlobalPaymentMonitor";
+import AppShell from "@/components/AppShell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,6 +17,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Sceneo Studio",
   description: "Making Lasting Memories Accessible to Everyone.",
+  icons: {
+    icon: "/sceneo logo.png",
+    shortcut: "/sceneo logo.png",
+    apple: "/sceneo logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -35,18 +35,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased `}
       >
         <ToastProvider>
-          <AuthProvider>
-            <BookingTypeProvider>
-              <CartProvider>
-                <UserIridescenceBackground />
-                <div className="relative z-10">
-                  <NavBar />
-                  {children}
-                  <GlobalPaymentMonitor />
-                </div>
-              </CartProvider>
-            </BookingTypeProvider>
-          </AuthProvider>
+          <AppShell>{children}</AppShell>
         </ToastProvider>
       </body>
     </html>

@@ -92,7 +92,6 @@ const fetchClosedDates = async () => {
       setClosedDates(dates);
     }
   } catch (error) {
-    console.error('Error fetching closed dates:', error);
   }
 };
 
@@ -149,7 +148,6 @@ useEffect(() => {
         setClosedDates(dates);
       }
     } catch (error) {
-      console.error('Error fetching closed dates:', error);
     }
   };
 
@@ -250,7 +248,6 @@ try {
   }
 } catch (error) {
   // Network or other error
-  console.error('Error:', error);
   showConfirmation('An error occurred', 'error');
 }
 ```

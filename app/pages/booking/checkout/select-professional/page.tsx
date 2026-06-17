@@ -82,8 +82,7 @@ export default function SelectProfessionalPage() {
         });
 
         setProviders(response.success && Array.isArray(response.data) ? response.data : []);
-      } catch (error) {
-        console.error('Error fetching providers:', error);
+      } catch {
         setProviders([]);
         showToast('Unable to load providers right now.', 'error');
       } finally {
@@ -213,3 +212,4 @@ export default function SelectProfessionalPage() {
     </main>
   );
 }
+

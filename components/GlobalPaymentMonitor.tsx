@@ -71,8 +71,7 @@ export default function GlobalPaymentMonitor() {
           }
           return;
         }
-      } catch (error) {
-        console.error("Failed to sync PayMongo payment link:", error);
+      } catch {
       }
 
       pollTimeoutId = window.setTimeout(pollPaymongoLinkStatus, 5000);
@@ -115,3 +114,4 @@ export default function GlobalPaymentMonitor() {
 }
 
 export { PAYMENT_STORAGE_EVENT };
+

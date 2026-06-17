@@ -11,8 +11,9 @@ export default function AuthPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-transparent flex items-center justify-center">
+    <div className="min-h-screen bg-[#e5e7eb] flex items-center justify-center">
       <p className="text-gray-600">Redirecting...</p>
     </div>
   );
 }
+

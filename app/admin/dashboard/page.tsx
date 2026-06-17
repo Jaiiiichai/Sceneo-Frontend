@@ -148,6 +148,19 @@ const mapAddonsToServices = (addons?: ApiBooking['booking_addons']) => {
   return services;
 };
 
+const formatServiceTypeLabel = (serviceType?: string) => {
+  switch ((serviceType || '').toLowerCase()) {
+    case 'photography':
+      return 'Photography';
+    case 'editor':
+      return 'Editor';
+    case 'make_up_artist':
+      return 'Make-up Artist';
+    default:
+      return (serviceType || 'Service').split('_').join(' ');
+  }
+};
+
 const mapApiBookingToBooking = (booking: ApiBooking): Booking => ({
   id: String(booking.id),
   rawDate: booking.booking_date,
@@ -191,8 +204,7 @@ export default function AdminDashboard() {
       } else {
         setBookings([]);
       }
-    } catch (error) {
-      console.error('Error fetching bookings:', error);
+    } catch {
       setBookings([]);
       showConfirmation('Unable to load bookings from API.', 'error');
     }
@@ -200,7 +212,7 @@ export default function AdminDashboard() {
 
 
   const [closedDates, setClosedDates] = useState<ClosedDate[]>([]);
-  const [currentViewDate, setCurrentViewDate] = useState(new Date(2026, 1, 1)); // February 2026
+  const [currentViewDate, setCurrentViewDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [providerSchedules, setProviderSchedules] = useState<ProviderSchedule[]>([]);
@@ -246,8 +258,7 @@ export default function AdminDashboard() {
         );
         setClosedDates(validDates);
       }
-    } catch (error) {
-      console.error('Error fetching closed dates:', error);
+    } catch {
       setClosedDates([]); // Set to empty array on error
     }
   };
@@ -261,8 +272,7 @@ export default function AdminDashboard() {
       } else {
         setProviders([]);
       }
-    } catch (error) {
-      console.error('Error fetching providers:', error);
+    } catch {
       setProviders([]);
       showConfirmation('Unable to load providers.', 'error');
     } finally {
@@ -278,8 +288,7 @@ export default function AdminDashboard() {
       } else {
         setProviderSchedules([]);
       }
-    } catch (error) {
-      console.error('Error fetching provider schedules:', error);
+    } catch {
       setProviderSchedules([]);
       showConfirmation('Unable to load provider schedules.', 'error');
     }
@@ -323,8 +332,7 @@ export default function AdminDashboard() {
 
       resetProviderForm();
       await fetchProviders();
-    } catch (error) {
-      console.error('Error saving provider:', error);
+    } catch {
       showConfirmation('Failed to save provider.', 'error');
     } finally {
       setProvidersLoading(false);
@@ -385,8 +393,7 @@ export default function AdminDashboard() {
       showConfirmation(`Provider duty schedule added for ${dates.length} day(s).`, 'success');
       setScheduleForm(prev => ({ ...prev, start_date: '', end_date: '' }));
       await fetchProviderSchedules();
-    } catch (error) {
-      console.error('Error saving provider schedule:', error);
+    } catch {
       showConfirmation('Failed to save provider schedule.', 'error');
     }
   };
@@ -396,8 +403,7 @@ export default function AdminDashboard() {
       await api.delete(`/providers/schedules/${scheduleId}`, { requiresAuth: true });
       showConfirmation('Provider duty schedule removed.', 'success');
       await fetchProviderSchedules();
-    } catch (error) {
-      console.error('Error deleting provider schedule:', error);
+    } catch {
       showConfirmation('Failed to remove provider schedule.', 'error');
     }
   };
@@ -407,8 +413,7 @@ export default function AdminDashboard() {
       await api.delete(`/providers/${providerId}`, { requiresAuth: true });
       showConfirmation('Provider deleted successfully.', 'success');
       await fetchProviders();
-    } catch (error) {
-      console.error('Error deleting provider:', error);
+    } catch {
       showConfirmation('Failed to delete provider.', 'error');
     }
   };
@@ -428,6 +433,12 @@ export default function AdminDashboard() {
     fetchProviderSchedules();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  useEffect(() => {
+    if (activeTab === 'availability') {
+      setCurrentViewDate(new Date());
+    }
+  }, [activeTab]);
 
   const handleLogout = () => {
     localStorage.removeItem('sceneo_admin');
@@ -495,8 +506,7 @@ export default function AdminDashboard() {
           showConfirmation('Failed to close date. Please try again.', 'error');
         }
       }
-    } catch (error) {
-      console.error('Error toggling date availability:', error);
+    } catch {
       showConfirmation('An error occurred. Please try again.', 'error');
     } finally {
       setLoading(false);
@@ -553,8 +563,7 @@ export default function AdminDashboard() {
 
       showConfirmation(`Booking status updated to ${statusChangeModal.newStatus.toUpperCase()}`, 'success');
       setStatusChangeModal(null);
-    } catch (error) {
-      console.error('Error updating booking status:', error);
+    } catch {
       showConfirmation('Failed to update booking status.', 'error');
     } finally {
       setStatusUpdating(false);
@@ -604,8 +613,8 @@ export default function AdminDashboard() {
   };
 
   if (!admin) {
-    return <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-      <p className="text-white">Loading...</p>
+    return <div className="min-h-screen bg-[#e5e7eb] flex items-center justify-center">
+      <p className="font-semibold text-slate-700">Loading admin workspace...</p>
     </div>;
   }
 
@@ -617,12 +626,15 @@ export default function AdminDashboard() {
     .toUpperCase();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#e5e7eb]">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-transparent px-4 sm:px-6 lg:px-8 pt-4">
-        <div className="mx-auto w-full max-w-6xl rounded-2xl border border-white/70 bg-white/35 backdrop-blur-md shadow-lg shadow-slate-900/10 px-4 sm:px-6">
+      <header className="sticky top-0 z-50 bg-[#e5e7eb]/90 px-4 pt-4 backdrop-blur sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-7xl rounded-lg border border-slate-200 bg-white/95 px-4 shadow-sm sm:px-6">
           <div className="h-16 flex items-center justify-between">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">SCENEO STUDIO ADMIN</h1>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-teal-700">Sceneo Studio</p>
+              <h1 className="text-xl font-black text-slate-950 tracking-tight sm:text-2xl">Admin Dashboard</h1>
+            </div>
 
             <div className="flex items-center gap-3">
               <div className="hidden sm:block text-right">
@@ -636,7 +648,7 @@ export default function AdminDashboard() {
 
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 font-semibold hover:bg-slate-100 transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2 font-semibold text-white transition-colors hover:bg-slate-800"
               >
                 <LogOut size={18} />
                 <span className="hidden sm:inline">Logout</span>
@@ -648,11 +660,11 @@ export default function AdminDashboard() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Navigation Tabs */}
-        <div className="bg-white rounded-xl border-2 border-gray-200 p-2 mb-8 flex flex-wrap gap-2">
+        <div className="mb-8 flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
           <button
             onClick={() => setActiveTab('overview')}
             className={`flex-1 min-w-[120px] px-6 py-3 rounded-lg font-bold transition-all ${
-              activeTab === 'overview' ? 'bg-black text-white' : 'text-gray-700 hover:bg-gray-100'
+              activeTab === 'overview' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
             }`}
           >
             Overview
@@ -660,7 +672,7 @@ export default function AdminDashboard() {
           <button
             onClick={() => setActiveTab('bookings')}
             className={`flex-1 min-w-[120px] px-6 py-3 rounded-lg font-bold transition-all ${
-              activeTab === 'bookings' ? 'bg-black text-white' : 'text-gray-700 hover:bg-gray-100'
+              activeTab === 'bookings' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
             }`}
           >
             Bookings
@@ -668,7 +680,7 @@ export default function AdminDashboard() {
           <button
             onClick={() => setActiveTab('availability')}
             className={`flex-1 min-w-[120px] px-6 py-3 rounded-lg font-bold transition-all ${
-              activeTab === 'availability' ? 'bg-black text-white' : 'text-gray-700 hover:bg-gray-100'
+              activeTab === 'availability' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
             }`}
           >
             Availability
@@ -676,7 +688,7 @@ export default function AdminDashboard() {
           <button
             onClick={() => setActiveTab('providers')}
             className={`flex-1 min-w-[120px] px-6 py-3 rounded-lg font-bold transition-all ${
-              activeTab === 'providers' ? 'bg-black text-white' : 'text-gray-700 hover:bg-gray-100'
+              activeTab === 'providers' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
             }`}
           >
             Providers
@@ -686,35 +698,56 @@ export default function AdminDashboard() {
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">Overview</p>
+              <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <h2 className="text-3xl font-black text-slate-950">Today&apos;s admin snapshot</h2>
+                  <p className="mt-1 text-slate-600">Track booking activity, payment progress, and studio performance at a glance.</p>
+                </div>
+                <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700">
+                  {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </div>
+              </div>
+            </div>
+
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
+              <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <Calendar className="text-gray-600" size={24} />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-100">
+                    <Calendar className="text-slate-700" size={22} />
+                  </div>
                   <span className="text-3xl font-black text-gray-900">{stats.totalBookings}</span>
                 </div>
                 <p className="text-sm font-semibold text-gray-600">Total Bookings</p>
               </div>
 
-              <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
+              <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <Users className="text-orange-600" size={24} />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-orange-50">
+                    <Users className="text-orange-600" size={22} />
+                  </div>
                   <span className="text-3xl font-black text-gray-900">{stats.pendingBookings}</span>
                 </div>
                 <p className="text-sm font-semibold text-gray-600">Pending</p>
               </div>
 
-              <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
+              <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <DollarSign className="text-green-600" size={24} />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-green-50">
+                    <DollarSign className="text-green-600" size={22} />
+                  </div>
                   <span className="text-3xl font-black text-gray-900">₱{stats.revenue.toFixed(0)}</span>
                 </div>
                 <p className="text-sm font-semibold text-gray-600">Total Revenue</p>
               </div>
 
-              <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
+              <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <TrendingUp className="text-blue-600" size={24} />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50">
+                    <TrendingUp className="text-blue-600" size={22} />
+                  </div>
                   <span className="text-3xl font-black text-gray-900">{stats.completionRate}%</span>
                 </div>
                 <p className="text-sm font-semibold text-gray-600">Completion Rate</p>
@@ -722,11 +755,17 @@ export default function AdminDashboard() {
             </div>
 
             {/* Recent Bookings */}
-            <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Recent Bookings</h2>
+            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-950">Recent Bookings</h2>
+                  <p className="text-sm text-slate-600">Latest customer reservations shown first.</p>
+                </div>
+                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Latest 3</span>
+              </div>
               <div className="space-y-3">
                 {bookings.slice(0, 3).map(booking => (
-                  <div key={booking.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                  <div key={booking.id} className="flex items-center justify-between rounded-lg bg-slate-50 p-4">
                     <div>
                       <p className="font-bold text-gray-900">{booking.customerName}</p>
                       <p className="text-sm text-gray-600">{booking.studio} • {booking.date}</p>
@@ -750,62 +789,76 @@ export default function AdminDashboard() {
         {activeTab === 'bookings' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Bookings List */}
-            <div className="lg:col-span-2 bg-white rounded-xl p-6 border-2 border-gray-200">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">All Bookings</h2>
+            <div className="lg:col-span-2 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Bookings</p>
+                  <h2 className="text-2xl font-black text-slate-950">All Bookings</h2>
+                </div>
+                <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700">
+                  {bookings.length} total
+                </p>
+              </div>
               
               {/* Date Filter */}
-              <div className="mb-4 pb-4 border-b-2 border-gray-200">
-                <label className="block text-sm font-semibold text-gray-600 mb-2">Search by Customer Name</label>
-                <div className="flex gap-2 mb-4">
-                  <input
-                    type="text"
-                    value={nameFilter}
-                    onChange={(e) => setNameFilter(e.target.value)}
-                    placeholder="Type customer name..."
-                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
-                  />
-                  {nameFilter && (
-                    <button
-                      onClick={() => setNameFilter('')}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-colors"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
+              <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Search by Customer Name</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={nameFilter}
+                        onChange={(e) => setNameFilter(e.target.value)}
+                        placeholder="Type customer name..."
+                        className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
+                      />
+                      {nameFilter && (
+                        <button
+                          onClick={() => setNameFilter('')}
+                          className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-100"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                <label className="block text-sm font-semibold text-gray-600 mb-2">Filter by Date</label>
-                <div className="flex gap-2">
-                  <input
-                    type="date"
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                    className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
-                  />
-                  {dateFilter && (
-                    <button
-                      onClick={() => setDateFilter('')}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-colors"
-                    >
-                      Clear
-                    </button>
-                  )}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Filter by Date</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="date"
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value)}
+                        className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
+                      />
+                      {dateFilter && (
+                        <button
+                          onClick={() => setDateFilter('')}
+                          className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-100"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    {dateFilter && (
+                      <p className="text-xs text-gray-600 mt-2 font-semibold">
+                        Showing bookings for: {new Date(dateFilter).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                {dateFilter && (
-                  <p className="text-xs text-gray-600 mt-2 font-semibold">
-                    Showing bookings for: {new Date(dateFilter).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                  </p>
-                )}
               </div>
               
               {/* Status Filters */}
-              <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b-2 border-gray-200">
+              <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-200 pb-4">
                 <button
                   onClick={() => setStatusFilter('all')}
                   className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
                     statusFilter === 'all' 
-                      ? 'bg-black text-white' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'bg-slate-950 text-white' 
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   All
@@ -815,7 +868,7 @@ export default function AdminDashboard() {
                   className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
                     statusFilter === 'pending' 
                       ? 'bg-orange-500 text-white' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   Pending
@@ -825,7 +878,7 @@ export default function AdminDashboard() {
                   className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
                     statusFilter === 'confirmed' 
                       ? 'bg-green-500 text-white' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   Confirmed
@@ -835,7 +888,7 @@ export default function AdminDashboard() {
                   className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
                     statusFilter === 'completed' 
                       ? 'bg-blue-500 text-white' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   Completed
@@ -845,7 +898,7 @@ export default function AdminDashboard() {
                   className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
                     statusFilter === 'cancelled' 
                       ? 'bg-red-500 text-white' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   Cancelled
@@ -882,7 +935,7 @@ export default function AdminDashboard() {
                   <div
                     key={booking.id}
                     onClick={() => setSelectedBooking(booking)}
-                    className="p-4 border-2 border-gray-200 rounded-xl hover:border-black cursor-pointer transition-colors"
+                    className="cursor-pointer rounded-lg border border-slate-200 p-4 transition-colors hover:border-slate-950 hover:bg-slate-50"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div>
@@ -955,34 +1008,37 @@ export default function AdminDashboard() {
             </div>
 
             {/* Booking Details */}
-            <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Booking Details</h2>
+            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-28 lg:self-start">
+              <div className="mb-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Selected</p>
+                <h2 className="text-2xl font-black text-slate-950">Booking Details</h2>
+              </div>
               {selectedBooking ? (
                 <div className="space-y-4">
-                  <div>
+                  <div className="rounded-lg bg-slate-50 p-4">
                     <p className="text-sm font-semibold text-gray-600 mb-1">Customer</p>
                     <p className="font-bold text-gray-900">{selectedBooking.customerName}</p>
                     <p className="text-sm text-gray-600">{selectedBooking.email}</p>
                     <p className="text-sm text-gray-600">{selectedBooking.phone}</p>
                   </div>
 
-                  <div className="border-t-2 border-gray-200 pt-4">
+                  <div className="rounded-lg border border-slate-200 p-4">
                     <p className="text-sm font-semibold text-gray-600 mb-1">Studio</p>
                     <p className="font-bold text-gray-900">{selectedBooking.studio}</p>
                   </div>
 
-                  <div className="border-t-2 border-gray-200 pt-4">
+                  <div className="rounded-lg border border-slate-200 p-4">
                     <p className="text-sm font-semibold text-gray-600 mb-1">Date & Time</p>
                     <p className="font-bold text-gray-900">{selectedBooking.date}</p>
                     <p className="text-sm text-gray-600">{selectedBooking.time} • {selectedBooking.duration}</p>
                   </div>
 
-                  <div className="border-t-2 border-gray-200 pt-4">
+                  <div className="rounded-lg border border-slate-200 p-4">
                     <p className="text-sm font-semibold text-gray-600 mb-1">Price</p>
                     <p className="text-2xl font-black text-gray-900">{selectedBooking.price}</p>
                   </div>
 
-                  <div className="border-t-2 border-gray-200 pt-4">
+                  <div className="rounded-lg border border-slate-200 p-4">
                     <p className="text-sm font-semibold text-gray-600 mb-2">Add-on Services</p>
                     {selectedBooking.services.photographer?.enabled || selectedBooking.services.editor?.enabled || selectedBooking.services.makeupArtist?.enabled ? (
                       <div className="space-y-3">
@@ -1019,7 +1075,7 @@ export default function AdminDashboard() {
                     )}
                   </div>
 
-                  <div className="border-t-2 border-gray-200 pt-4">
+                  <div className="rounded-lg border border-slate-200 p-4">
                     <p className="text-sm font-semibold text-gray-600 mb-2">Status</p>
                     <div className="flex flex-col gap-2">
                       <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold text-center ${
@@ -1035,7 +1091,7 @@ export default function AdminDashboard() {
                       <select
                         value={selectedBooking.status}
                         onChange={(event) => requestBookingStatusChange(selectedBooking, event.target.value as Booking['status'])}
-                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
                       >
                         <option value="pending">Pending</option>
                         <option value="confirmed">Confirmed</option>
@@ -1046,9 +1102,9 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <Eye size={48} className="text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">Select a booking to view details</p>
+                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+                  <Eye size={48} className="text-slate-300 mx-auto mb-3" />
+                  <p className="font-semibold text-slate-600">Select a booking to view details</p>
                 </div>
               )}
             </div>
@@ -1057,17 +1113,26 @@ export default function AdminDashboard() {
 
         {/* Availability Tab */}
         {activeTab === 'availability' && (
-          <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Manage Studio Availability</h2>
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Availability</p>
+                <h2 className="text-2xl font-black text-slate-950">Manage Studio Availability</h2>
+                <p className="mt-1 text-slate-600">Click a future date to open or close it for customer booking.</p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs font-bold">
+                <span className="rounded-full bg-green-100 px-3 py-1 text-green-700">Open</span>
+                <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">Closed</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">Past</span>
+              </div>
+            </div>
             
             <div className="space-y-4">
-              <p className="text-gray-600">Control which dates are available for booking. Click on dates below to toggle availability.</p>
-              
               {/* Month Navigation */}
-              <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl">
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <button
                   onClick={goToPreviousMonth}
-                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                  className="rounded-lg bg-white p-2 text-slate-700 transition-colors hover:bg-slate-100"
                 >
                   <ChevronLeft size={24} className="text-gray-700" />
                 </button>
@@ -1086,26 +1151,26 @@ export default function AdminDashboard() {
                 
                 <button
                   onClick={goToNextMonth}
-                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                  className="rounded-lg bg-white p-2 text-slate-700 transition-colors hover:bg-slate-100"
                 >
                   <ChevronRight size={24} className="text-gray-700" />
                 </button>
               </div>
 
               {/* Weekday Headers */}
-              <div className="grid grid-cols-7 gap-1.5">
+              <div className="grid grid-cols-7 gap-2">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="text-center text-xs font-bold text-gray-600 py-1">
+                  <div key={day} className="rounded-md bg-slate-100 py-2 text-center text-xs font-bold text-slate-600">
                     {day}
                   </div>
                 ))}
               </div>
               
               {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-1.5">
+              <div className="grid grid-cols-7 gap-2">
                 {getDaysInMonth().map((date, index) => {
                   if (!date) {
-                    return <div key={`empty-${index}`} className="h-16" />;
+                    return <div key={`empty-${index}`} className="h-20 rounded-lg bg-slate-50/60" />;
                   }
                   
                   const dateStr = formatDateToYYYYMMDD(date);
@@ -1118,17 +1183,17 @@ export default function AdminDashboard() {
                       key={dateStr}
                       onClick={() => toggleDateAvailability(dateStr)}
                       disabled={isPast}
-                      className={`h-16 p-1.5 rounded-lg border-2 transition-all ${
+                      className={`h-20 p-1.5 rounded-lg border text-left transition-all ${
                         isPast
-                          ? 'border-gray-200 bg-gray-100 cursor-not-allowed opacity-50'
+                          ? 'border-slate-200 bg-slate-100 cursor-not-allowed opacity-60'
                           : isClosed
-                          ? 'border-red-300 bg-red-50 hover:border-red-500'
-                          : 'border-green-300 bg-green-50 hover:border-green-500'
+                          ? 'border-red-200 bg-red-50 hover:border-red-400'
+                          : 'border-green-200 bg-green-50 hover:border-green-400'
                       } ${
-                        isToday ? 'ring-2 ring-black ring-offset-1' : ''
+                        isToday ? 'ring-2 ring-slate-950 ring-offset-1' : ''
                       }`}
                     >
-                      <div className="flex flex-col items-center justify-center h-full">
+                      <div className="flex h-full flex-col justify-between">
                         <span className={`text-sm font-black ${
                           isPast ? 'text-gray-400' : 'text-gray-900'
                         }`}>
@@ -1136,9 +1201,9 @@ export default function AdminDashboard() {
                         </span>
                         {!isPast && (
                           isClosed ? (
-                            <XCircle size={12} className="text-red-500 mt-0.5" />
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600"><XCircle size={12} /> Closed</span>
                           ) : (
-                            <Check size={12} className="text-green-500 mt-0.5" />
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-600"><Check size={12} /> Open</span>
                           )
                         )}
                       </div>
@@ -1147,7 +1212,7 @@ export default function AdminDashboard() {
                 })}
               </div>
 
-              <div className="mt-6 p-4 bg-gray-50 rounded-xl">
+              <div className="mt-6 rounded-lg bg-slate-50 p-4">
                 <h3 className="font-bold text-gray-900 mb-2">Currently Closed Dates:</h3>
                 {closedDates.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
@@ -1173,12 +1238,16 @@ export default function AdminDashboard() {
         {/* Providers Tab */}
         {activeTab === 'providers' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white rounded-xl p-6 border-2 border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-900">All Providers</h2>
+            <div className="lg:col-span-2 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Providers</p>
+                  <h2 className="text-2xl font-black text-slate-950">All Providers</h2>
+                  <p className="text-sm text-slate-600">Click a provider to view assigned duty schedules.</p>
+                </div>
                 <button
                   onClick={fetchProviders}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-colors"
+                  className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200"
                 >
                   Refresh
                 </button>
@@ -1197,18 +1266,22 @@ export default function AdminDashboard() {
                     <div
                       key={provider.id}
                       onClick={() => selectProviderForSchedule(provider)}
-                      className={`p-4 border-2 rounded-xl cursor-pointer transition-colors ${
-                        selectedProviderId === provider.id ? 'border-black bg-gray-50' : 'border-gray-200 bg-white'
+                      className={`cursor-pointer rounded-lg border p-4 transition-colors ${
+                        selectedProviderId === provider.id ? 'border-slate-950 bg-slate-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-400'
                       }`}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div>
-                          <p className="font-bold text-gray-900">{provider.full_name}</p>
-                          <p className="text-sm text-gray-600">Type: {provider.service_type}</p>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-bold text-gray-900">{provider.full_name}</p>
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+                              {formatServiceTypeLabel(provider.service_type)}
+                            </span>
+                          </div>
                           {provider.quote_required && (
-                            <p className="text-sm font-semibold text-amber-700">For quotation</p>
+                            <p className="mt-1 text-sm font-semibold text-amber-700">For quotation</p>
                           )}
-                          <p className="mt-2 text-xs text-gray-500">
+                          <p className="mt-3 text-xs font-bold text-slate-500">
                             {getProviderScheduleCount(provider.id)} scheduled duty day(s)
                           </p>
                           <p className="text-sm text-gray-600">Rate: ₱{Number(provider.rate).toLocaleString()}</p>
@@ -1235,7 +1308,7 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       {selectedProviderId === provider.id && (
-                        <div className="mt-4 border-t border-gray-200 pt-4">
+                        <div className="mt-4 border-t border-slate-200 pt-4">
                           <div className="flex items-center justify-between gap-3 mb-3">
                             <h3 className="font-bold text-gray-900">Schedules</h3>
                             <span className="text-xs font-semibold text-gray-500">
@@ -1247,7 +1320,7 @@ export default function AdminDashboard() {
                           ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                               {selectedProviderSchedules.map(schedule => (
-                                <div key={schedule.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3 bg-white">
+                                <div key={schedule.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
                                   <div>
                                     <p className="text-sm font-bold text-gray-900">{formatDisplayDate(schedule.duty_date)}</p>
                                     <p className="text-xs text-gray-600">
@@ -1276,44 +1349,47 @@ export default function AdminDashboard() {
               )}
             </div>
 
-            <div className="bg-white rounded-xl p-6 border-2 border-gray-200 h-fit">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                {editingProviderId ? 'Update Provider' : 'Add Provider'}
-              </h2>
+            <div className="h-fit rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Provider Form</p>
+                <h2 className="text-2xl font-black text-slate-950">
+                  {editingProviderId ? 'Update Provider' : 'Add Provider'}
+                </h2>
+              </div>
 
               <form onSubmit={handleProviderSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">Full Name</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Full Name</label>
                   <input
                     type="text"
                     value={providerForm.full_name}
                     onChange={(e) => setProviderForm(prev => ({ ...prev, full_name: e.target.value }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
                     placeholder="Provider full name"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">Service Type</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Service Type</label>
                   <select
                     value={providerForm.service_type}
                     onChange={(e) => setProviderForm(prev => ({ ...prev, service_type: e.target.value }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
                   >
-                    <option value="photography">photography</option>
-                    <option value="editor">editor</option>
-                    <option value="make_up_artist">make_up_artist</option>
+                    <option value="photography">Photography</option>
+                    <option value="editor">Editor</option>
+                    <option value="make_up_artist">Make-up Artist</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">Rate</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Rate</label>
                   <input
                     type="number"
                     min="0"
                     value={providerForm.rate}
                     onChange={(e) => setProviderForm(prev => ({ ...prev, rate: e.target.value }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
                     placeholder="1500"
                   />
                 </div>
@@ -1350,22 +1426,23 @@ export default function AdminDashboard() {
               </form>
             </div>
 
-            <div className="lg:col-span-3 bg-white rounded-xl p-6 border-2 border-gray-200">
+            <div className="lg:col-span-3 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Add Duty Schedule</h2>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Duty Calendar</p>
+                  <h2 className="text-2xl font-black text-slate-950">Add Duty Schedule</h2>
                   <p className="text-sm text-gray-600">
                     Select a provider card above, then add one day or a date range with the same hours.
                   </p>
                 </div>
                 {selectedProvider && (
-                  <div className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-bold text-gray-800">
+                  <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-800">
                     Selected: {selectedProvider.full_name}
                   </div>
                 )}
               </div>
 
-              <form onSubmit={handleScheduleSubmit} className="grid grid-cols-1 md:grid-cols-6 gap-3">
+              <form onSubmit={handleScheduleSubmit} className="grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-6">
                 <select
                   value={scheduleForm.provider_id}
                   onChange={(e) => {
@@ -1373,7 +1450,7 @@ export default function AdminDashboard() {
                     setScheduleForm(prev => ({ ...prev, provider_id: e.target.value }));
                     setSelectedProviderId(Number.isFinite(providerId) ? providerId : null);
                   }}
-                  className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
                 >
                   <option value="">Select provider</option>
                   {providers.map(provider => (
@@ -1386,33 +1463,33 @@ export default function AdminDashboard() {
                   type="date"
                   value={scheduleForm.start_date}
                   onChange={(e) => setScheduleForm(prev => ({ ...prev, start_date: e.target.value, end_date: prev.end_date || e.target.value }))}
-                  className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
                   aria-label="Start date"
                 />
                 <input
                   type="date"
                   value={scheduleForm.end_date}
                   onChange={(e) => setScheduleForm(prev => ({ ...prev, end_date: e.target.value }))}
-                  className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
                   aria-label="End date"
                 />
                 <input
                   type="time"
                   value={scheduleForm.start_time}
                   onChange={(e) => setScheduleForm(prev => ({ ...prev, start_time: e.target.value }))}
-                  className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
                   aria-label="Start time"
                 />
                 <input
                   type="time"
                   value={scheduleForm.end_time}
                   onChange={(e) => setScheduleForm(prev => ({ ...prev, end_time: e.target.value }))}
-                  className="px-3 py-2 border-2 border-gray-200 rounded-lg font-semibold text-sm focus:border-black focus:outline-none"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
                   aria-label="End time"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-colors"
+                  className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-slate-800"
                 >
                   Add Duty
                 </button>
@@ -1425,7 +1502,7 @@ export default function AdminDashboard() {
       {/* Confirmation Modal */}
       {confirmModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-xl p-6 border-2 border-gray-900 max-w-md w-full mx-4 animate-slide-up">
+          <div className="mx-4 w-full max-w-md animate-slide-up rounded-lg border border-slate-200 bg-white p-6 shadow-xl shadow-slate-950/15">
             <h3 className="text-xl font-black text-gray-900 mb-2">Confirm Action</h3>
             <p className="text-gray-600 mb-6">
               Are you sure you want to <span className="font-bold">{confirmModal.action === 'open' ? 'OPEN' : 'CLOSE'}</span> {confirmModal.formattedDate} for bookings?
@@ -1434,7 +1511,7 @@ export default function AdminDashboard() {
               <button
                 onClick={cancelToggle}
                 disabled={loading}
-                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 rounded-lg bg-slate-100 px-4 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1457,10 +1534,10 @@ export default function AdminDashboard() {
       {/* Confirmation Toast */}
       {confirmationToast.show && (
         <div className="fixed bottom-6 right-6 z-50 animate-slide-up">
-          <div className={`px-6 py-4 rounded-xl border-2 ${
+          <div className={`rounded-lg border px-6 py-4 ${
             confirmationToast.type === 'success' 
-              ? 'bg-green-50 border-green-500 text-green-900' 
-              : 'bg-red-50 border-red-500 text-red-900'
+              ? 'bg-green-50 border-green-200 text-green-900' 
+              : 'bg-red-50 border-red-200 text-red-900'
           } shadow-lg flex items-center gap-3`}>
             {confirmationToast.type === 'success' ? (
               <Check size={20} className="text-green-600" />
@@ -1475,7 +1552,7 @@ export default function AdminDashboard() {
       {/* Status Change Confirmation Modal */}
       {statusChangeModal?.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-xl p-6 border-2 border-gray-900 max-w-md w-full mx-4 animate-slide-up">
+          <div className="mx-4 w-full max-w-md animate-slide-up rounded-lg border border-slate-200 bg-white p-6 shadow-xl shadow-slate-950/15">
             <h3 className="text-xl font-black text-gray-900 mb-2">Confirm Status Update</h3>
             <p className="text-gray-600 mb-6">
               Change booking status for <span className="font-bold">{statusChangeModal.customerName}</span> from{' '}
@@ -1486,14 +1563,14 @@ export default function AdminDashboard() {
               <button
                 onClick={cancelStatusChange}
                 disabled={statusUpdating}
-                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 rounded-lg bg-slate-100 px-4 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmStatusChange}
                 disabled={statusUpdating}
-                className="flex-1 px-4 py-3 bg-black text-white rounded-lg font-bold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 rounded-lg bg-slate-950 px-4 py-3 font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {statusUpdating ? 'Updating...' : 'Confirm'}
               </button>
@@ -1504,3 +1581,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+

@@ -118,8 +118,7 @@ export async function fetchAllTimeSlots(): Promise<ApiTimeSlot[]> {
     }
     
     return [];
-  } catch (error) {
-    console.error('Error fetching time slots:', error);
+  } catch {
     return [];
   }
 }
@@ -148,8 +147,7 @@ export async function fetchSlotInventory(date: Date | string): Promise<SlotInven
     }
     
     return [];
-  } catch (error) {
-    console.error('Error fetching slot inventory:', error);
+  } catch {
     return [];
   }
 }
@@ -178,12 +176,10 @@ export async function fetchAvailableSlots(date: Date | string): Promise<Availabl
       String(error.data?.message || '').includes('time_slot_id');
 
     if (isSchemaCacheError) {
-      console.warn('Falling back to /slot-inventory due to backend schema cache mismatch on /time-slots/available');
       const inventory = await fetchSlotInventory(date);
       return mapInventoryToAvailableSlotItems(inventory);
     }
 
-    console.error('Error fetching available time slots:', error);
     return [];
   }
 }
@@ -647,3 +643,4 @@ export function clearTimeSlotsCache(): void {
 }
 
 export default getWeeklySchedule;
+

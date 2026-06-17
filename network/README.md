@@ -120,12 +120,8 @@ import api, { APIError } from '@/network';
 
 try {
   const data = await api.get('/some-endpoint');
-  console.log(data);
 } catch (error) {
   if (error instanceof APIError) {
-    console.error('API Error:', error.message);
-    console.error('Status:', error.status);
-    console.error('Data:', error.data);
     
     // Handle specific status codes
     if (error.status === 401) {
@@ -134,7 +130,6 @@ try {
       // Show not found message
     }
   } else {
-    console.error('Unexpected error:', error);
   }
 }
 ```

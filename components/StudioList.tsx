@@ -84,8 +84,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
         });
         
         setGeneratedStudios(studios);
-      } catch (error) {
-        console.error('Error fetching time slots:', error);
+      } catch {
         setGeneratedStudios([]);
       } finally {
         setLoading(false);
@@ -325,4 +324,5 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
     </div>
   );
 }
+
 

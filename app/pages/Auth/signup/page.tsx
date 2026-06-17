@@ -40,14 +40,13 @@ export default function SignUpPage() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
       setError(errorMessage);
-      console.error('Signup failed:', err);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f7f7f4] p-4 pt-28">
+    <div className="flex min-h-screen items-center justify-center bg-[#e5e7eb] p-4 pt-28">
       <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
         <p className="mb-2 text-center text-xs font-black uppercase tracking-[0.22em] text-rose-700">Sceneo Studio</p>
         <h1 className="text-center text-4xl font-black text-slate-950 mb-2">
@@ -154,3 +153,5 @@ export default function SignUpPage() {
     </div>
   );
 }
+
+
