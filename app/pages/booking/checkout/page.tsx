@@ -187,6 +187,7 @@ export default function BookingCheckoutPage() {
       const response = await api.post<PromoValidationResponse>('/bookings/promo/validate', {
         promo_code: normalizedPromoCode,
         booking_type: item.bookingType || 'professional_slots',
+        booking_date: item.bookingDate || formatLocalDate(new Date()),
         booking_base_price: getItemBasePrice(item),
       }, { requiresAuth: true });
 

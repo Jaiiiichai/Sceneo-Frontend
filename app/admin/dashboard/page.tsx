@@ -100,6 +100,8 @@ interface PromoCode {
   booking_types: string[];
   start_at?: string | null;
   end_at?: string | null;
+  booking_start_date?: string | null;
+  booking_end_date?: string | null;
   max_uses?: number | null;
   used_count: number;
   is_active: boolean;
@@ -189,6 +191,16 @@ const formatDateTimeLocal = (value?: string | null) => {
   if (Number.isNaN(date.getTime())) return '';
   const offsetMs = date.getTimezoneOffset() * 60 * 1000;
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+};
+
+const formatDateInput = (value?: string | null) => {
+  if (!value) return '';
+  return value.slice(0, 10);
+};
+
+const formatPromoBookingDate = (value?: string | null) => {
+  if (!value) return 'No limit';
+  return formatDisplayDate(value.slice(0, 10));
 };
 
 const formatPromoWindow = (value?: string | null) => {
@@ -290,6 +302,8 @@ export default function AdminDashboard() {
     booking_types: ['professional_slots'],
     start_at: '',
     end_at: '',
+    booking_start_date: '',
+    booking_end_date: '',
     max_uses: '',
     is_active: true,
   });
@@ -561,6 +575,8 @@ export default function AdminDashboard() {
       booking_types: ['professional_slots'],
       start_at: '',
       end_at: '',
+      booking_start_date: '',
+      booking_end_date: '',
       max_uses: '',
       is_active: true,
     });
@@ -584,6 +600,8 @@ export default function AdminDashboard() {
     booking_types: promoForm.booking_types,
     start_at: promoForm.start_at ? new Date(promoForm.start_at).toISOString() : null,
     end_at: promoForm.end_at ? new Date(promoForm.end_at).toISOString() : null,
+    booking_start_date: promoForm.booking_start_date || null,
+    booking_end_date: promoForm.booking_end_date || null,
     max_uses: promoForm.max_uses ? Number(promoForm.max_uses) : null,
     is_active: promoForm.is_active,
   });
@@ -593,6 +611,15 @@ export default function AdminDashboard() {
 
     if (!promoForm.code.trim() || !promoForm.discount_value) {
       showConfirmation('Please enter a promo code and discount value.', 'error');
+      return;
+    }
+
+    if (
+      promoForm.booking_start_date &&
+      promoForm.booking_end_date &&
+      promoForm.booking_end_date < promoForm.booking_start_date
+    ) {
+      showConfirmation('Booking date until cannot be before booking date from.', 'error');
       return;
     }
 
@@ -629,6 +656,8 @@ export default function AdminDashboard() {
       booking_types: promo.booking_types?.length ? promo.booking_types : ['professional_slots'],
       start_at: formatDateTimeLocal(promo.start_at),
       end_at: formatDateTimeLocal(promo.end_at),
+      booking_start_date: formatDateInput(promo.booking_start_date),
+      booking_end_date: formatDateInput(promo.booking_end_date),
       max_uses: promo.max_uses ? String(promo.max_uses) : '',
       is_active: promo.is_active,
     });
@@ -1866,6 +1895,8 @@ export default function AdminDashboard() {
                                 <span>Uses: {promo.used_count}{promo.max_uses ? ` / ${promo.max_uses}` : ''}</span>
                                 <span>Starts: {formatPromoWindow(promo.start_at)}</span>
                                 <span>Ends: {formatPromoWindow(promo.end_at)}</span>
+                                <span>Booking from: {formatPromoBookingDate(promo.booking_start_date)}</span>
+                                <span>Booking until: {formatPromoBookingDate(promo.booking_end_date)}</span>
                               </div>
                             </div>
                             <div className="flex gap-2">
@@ -1968,7 +1999,7 @@ export default function AdminDashboard() {
 
                     <div className="grid grid-cols-1 gap-3">
                       <div>
-                        <label className="mb-1 block text-sm font-bold text-slate-700">Start</label>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Promo Active Start</label>
                         <input
                           type="datetime-local"
                           value={promoForm.start_at}
@@ -1977,11 +2008,32 @@ export default function AdminDashboard() {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-sm font-bold text-slate-700">End</label>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Promo Active End</label>
                         <input
                           type="datetime-local"
                           value={promoForm.end_at}
                           onChange={(event) => setPromoForm(prev => ({ ...prev, end_at: event.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Booking Date From</label>
+                        <input
+                          type="date"
+                          value={promoForm.booking_start_date}
+                          onChange={(event) => setPromoForm(prev => ({ ...prev, booking_start_date: event.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Booking Date Until</label>
+                        <input
+                          type="date"
+                          value={promoForm.booking_end_date}
+                          onChange={(event) => setPromoForm(prev => ({ ...prev, booking_end_date: event.target.value }))}
                           className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
                         />
                       </div>
