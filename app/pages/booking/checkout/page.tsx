@@ -36,6 +36,11 @@ export default function BookingCheckoutPage() {
   const [promoMessage, setPromoMessage] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountedBasePrice: number } | null>(null);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [pendingProviderRemoval, setPendingProviderRemoval] = useState<{
+    itemId: string;
+    serviceType?: string;
+    providerName: string;
+  } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submissionStage, setSubmissionStage] = useState<'idle' | 'preparing' | 'payment'>('idle');
   const [directBookingItem, setDirectBookingItem] = useState<CartItem | null>(null);
@@ -131,6 +136,15 @@ export default function BookingCheckoutPage() {
   const getItemBasePrice = (item: CartItem) => parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
   const getItemAddonsTotal = (item: CartItem) =>
     getItemAddons(item).reduce((sum, addon) => sum + (addon.quoteRequired ? 0 : Number(addon.providerRate || 0)), 0);
+  const getAddonServiceLabel = (serviceType: string) => {
+    if (serviceType === 'photography') return 'Photographer';
+    if (serviceType === 'editor') return 'Editor';
+    if (serviceType === 'make_up_artist') return 'Make-up Artist';
+    if (serviceType === 'make_up_artist_false_lashes') return 'HMUA Add-on';
+    if (serviceType === 'make_up_artist_touch_up') return 'HMUA Request';
+    if (serviceType === 'make_up_artist_hair_extensions') return 'HMUA Request';
+    return serviceType.split('_').join(' ');
+  };
   const getItemTotal = (item: CartItem) => getItemBasePrice(item) + getItemAddonsTotal(item);
   const bookingBaseTotal = checkoutItems.reduce((sum, item) => sum + getItemBasePrice(item), 0);
   const bookingAddonsTotal = checkoutItems.reduce((sum, item) => sum + getItemAddonsTotal(item), 0);
@@ -264,7 +278,7 @@ export default function BookingCheckoutPage() {
       const item = checkoutItems[0];
       const selectedAddons = getItemAddons(item);
 
-      if (selectedAddons.some((addon) => addon.quoteRequired)) {
+      if (selectedAddons.some((addon) => addon.quoteRequired && !addon.requestOnly)) {
         paymentWindow.close();
         showToast('This booking includes a service for quotation. Please wait for admin confirmation before payment.', 'error');
         return;
@@ -473,12 +487,24 @@ export default function BookingCheckoutPage() {
     setDirectBookingItem(directItem);
     setCheckoutDraft(directItem);
   }, []);
+  const requestRemoveProvider = (itemId: string, addon: ServiceAddon) => {
+    setPendingProviderRemoval({
+      itemId,
+      serviceType: addon.serviceType,
+      providerName: addon.providerName,
+    });
+  };
+
   const handleRemoveProvider = (itemId: string, serviceType?: string) => {
   const updatedItem = checkoutItems.find(it => it.id === itemId);
   if (!updatedItem) return;
 
   const remainingAddons = serviceType
-    ? getItemAddons(updatedItem).filter((addon) => addon.serviceType !== serviceType)
+    ? getItemAddons(updatedItem).filter((addon) => (
+        serviceType === 'make_up_artist'
+          ? !addon.serviceType.startsWith('make_up_artist')
+          : addon.serviceType !== serviceType
+      ))
     : [];
   const firstAddon = remainingAddons[0];
 
@@ -502,6 +528,7 @@ export default function BookingCheckoutPage() {
   }
 
   showToast('Service provider removed.', 'info');
+  setPendingProviderRemoval(null);
 };
 
   return (
@@ -700,22 +727,19 @@ export default function BookingCheckoutPage() {
         <div key={`${addon.serviceType}-${addon.providerId}`} className="mt-2 pt-2 border-t border-white/10 flex items-start justify-between gap-2">
           <div>
             <div className="text-xs text-gray-400">
-              {addon.serviceType === 'photography' ? 'Photographer'
-                : addon.serviceType === 'editor' ? 'Editor'
-                : addon.serviceType === 'make_up_artist' ? 'Make-up Artist'
-                : addon.serviceType}
+              {getAddonServiceLabel(addon.serviceType)}
             </div>
             <div className="text-sm text-gray-200">
               {addon.providerName}
               {addon.durationMinutes ? (
                 <span className="text-gray-400"> - {addon.durationMinutes} min</span>
               ) : null}
-              <span className="text-gray-400"> - {addon.quoteRequired ? 'For quotation' : `PHP ${Number(addon.providerRate).toLocaleString()}`}</span>
+              <span className="text-gray-400"> - {addon.requestOnly ? 'Available on request' : addon.quoteRequired ? 'For quotation' : `PHP ${Number(addon.providerRate).toLocaleString()}`}</span>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => handleRemoveProvider(it.id, addon.serviceType)}
+            onClick={() => requestRemoveProvider(it.id, addon)}
             className="text-xs text-red-400 hover:text-red-300 underline whitespace-nowrap flex-shrink-0 mt-1"
           >
             Remove
@@ -862,6 +886,39 @@ export default function BookingCheckoutPage() {
           </aside>
         </div>
       </div>
+
+      {pendingProviderRemoval && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close remove confirmation"
+            onClick={() => setPendingProviderRemoval(null)}
+          />
+          <div className="relative w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-xl">
+            <h2 className="text-2xl font-black text-slate-950">Remove this add-on?</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              {pendingProviderRemoval.providerName} will be removed from this booking.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setPendingProviderRemoval(null)}
+                className="rounded-lg bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 transition-colors hover:bg-slate-200"
+              >
+                Keep Add-on
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRemoveProvider(pendingProviderRemoval.itemId, pendingProviderRemoval.serviceType)}
+                className="rounded-lg bg-red-600 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-red-700"
+              >
+                Remove Add-on
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPolicyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">

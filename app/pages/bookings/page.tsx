@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Calendar, CalendarClock, Clock3, CreditCard, Receipt, RefreshCw, Sparkles } from 'lucide-react';
+import { Calendar, CalendarClock, Clock3, CreditCard, Plus, Receipt, RefreshCw, Sparkles } from 'lucide-react';
 import { api } from '@/network';
 import { useAuth } from '@/lib/authContext';
 import { useCart } from '@/lib/cartContext';
@@ -75,6 +75,16 @@ const formatTime = (value?: string) => {
   return `${hours}:${minutes} ${period}`;
 };
 
+const formatAddonServiceType = (serviceType?: string) => {
+  if (serviceType === 'photography') return 'Photographer';
+  if (serviceType === 'editor') return 'Editor';
+  if (serviceType === 'make_up_artist') return 'Make-up Artist';
+  if (serviceType === 'make_up_artist_false_lashes') return 'HMUA Add-on';
+  if (serviceType === 'make_up_artist_touch_up') return 'HMUA Request';
+  if (serviceType === 'make_up_artist_hair_extensions') return 'HMUA Request';
+  return (serviceType || 'Service').split('_').join(' ');
+};
+
 const statusClasses: Record<BookingStatus, string> = {
   pending: 'bg-amber-100 text-amber-800 border-amber-200',
   paid: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -111,7 +121,7 @@ const toHistoryBooking = (booking: ApiBooking): HistoryBooking => {
     priceAmount,
     provider: booking.booking_addons?.length
       ? booking.booking_addons
-          .map((addon) => `${addon.service_type || 'Service'}: ${addon.provider_name_snapshot || 'Provider'}`)
+          .map((addon) => `${formatAddonServiceType(addon.service_type)}: ${addon.provider_name_snapshot || 'Provider'}`)
           .join(', ')
       : booking.providers?.full_name,
     createdAt: booking.created_at ? formatDate(booking.created_at.split('T')[0]) : 'N/A',
@@ -135,6 +145,7 @@ export default function BookingsHistoryPage() {
   const [paymentPolling, setPaymentPolling] = useState(false);
   const [payingBookingId, setPayingBookingId] = useState<string | null>(null);
   const [rescheduleModal, setRescheduleModal] = useState<HistoryBooking | null>(null);
+  const [addonModal, setAddonModal] = useState<HistoryBooking | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState(formatLocalDate(new Date()));
   const [rescheduleSlots, setRescheduleSlots] = useState<TimeSlot[]>([]);
   const [selectedRescheduleSlotId, setSelectedRescheduleSlotId] = useState('');
@@ -549,6 +560,18 @@ export default function BookingsHistoryPage() {
     }
   };
 
+  const openAddonSelection = (booking: HistoryBooking, type: 'photographer' | 'editor' | 'makeup_artist') => {
+    const params = new URLSearchParams({
+      type,
+      addonBookingId: booking.id,
+      addonBookingStatus: booking.status,
+      date: booking.rawDate,
+      time: booking.rawTime,
+    });
+
+    router.push(`/pages/booking/checkout/select-professional?${params.toString()}`);
+  };
+
   return (
     <main className="min-h-screen bg-[#e5e7eb] pt-28">
       <div className="mx-auto max-w-6xl px-4 pb-14 sm:px-6 lg:px-8">
@@ -699,6 +722,16 @@ export default function BookingsHistoryPage() {
                       {booking.status === 'pending' && (
                         <button
                           type="button"
+                          onClick={() => setAddonModal(booking)}
+                          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:border-slate-950 hover:bg-slate-50"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Add-ons
+                        </button>
+                      )}
+                      {booking.status === 'pending' && (
+                        <button
+                          type="button"
                           onClick={() => handlePayPendingBooking(booking)}
                           disabled={payingBookingId === booking.id}
                           className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
@@ -708,14 +741,24 @@ export default function BookingsHistoryPage() {
                         </button>
                       )}
                       {booking.status === 'paid' && (
-                        <button
-                          type="button"
-                          onClick={() => openRescheduleModal(booking)}
-                          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-700"
-                        >
-                          <CalendarClock className="h-4 w-4" />
-                          Reschedule Booking
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setAddonModal(booking)}
+                            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Add-ons
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openRescheduleModal(booking)}
+                            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-700"
+                          >
+                            <CalendarClock className="h-4 w-4" />
+                            Reschedule Booking
+                          </button>
+                        </>
                       )}
                       {booking.status === 'pending' && (
                         <button
@@ -768,6 +811,59 @@ export default function BookingsHistoryPage() {
                   {cancelling ? 'Cancelling...' : 'Confirm Cancel'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {addonModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+              <div className="mb-5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">
+                  {addonModal.status === 'pending' ? 'Pending booking add-ons' : 'Paid booking add-ons'}
+                </p>
+                <h3 className="mt-1 text-2xl font-black text-slate-950">Add to Booking #{addonModal.id}</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  {addonModal.status === 'pending'
+                    ? 'Choose an add-on type. It will be added to your unpaid booking balance, then paid together with the booking.'
+                    : 'Choose an add-on type. Payment is required before the add-on is attached to this paid booking.'}
+                </p>
+              </div>
+
+              <div className="grid gap-3">
+                <button
+                  type="button"
+                  onClick={() => openAddonSelection(addonModal, 'photographer')}
+                  className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-slate-950 hover:bg-white"
+                >
+                  <p className="font-black text-slate-950">Photographer</p>
+                  <p className="mt-1 text-sm text-slate-600">Add photographer coverage for this booking time.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openAddonSelection(addonModal, 'editor')}
+                  className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-slate-950 hover:bg-white"
+                >
+                  <p className="font-black text-slate-950">Editor</p>
+                  <p className="mt-1 text-sm text-slate-600">Choose 10, 20, or 30 edited photos.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openAddonSelection(addonModal, 'makeup_artist')}
+                  className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-slate-950 hover:bg-white"
+                >
+                  <p className="font-black text-slate-950">Make-up Artist</p>
+                  <p className="mt-1 text-sm text-slate-600">Choose an HMUA package for this booking.</p>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setAddonModal(null)}
+                className="mt-5 w-full rounded-lg bg-slate-100 px-4 py-3 font-bold text-slate-700 transition hover:bg-slate-200"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         )}

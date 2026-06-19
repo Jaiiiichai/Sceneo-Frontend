@@ -149,6 +149,14 @@ const bookingOptions = [
     icon: Building2,
     action: 'Book Whole Studio',
   },
+  {
+    title: 'Add Add-ons',
+    description: 'Already booked and paid? Add a photographer, editor, or make-up package to your existing booking.',
+    href: '/pages/bookings',
+    type: null,
+    icon: Sparkles,
+    action: 'Choose Paid Booking',
+  },
 ];
 
 const serviceHighlights = [
@@ -269,14 +277,16 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
             {bookingOptions.map((option) => {
               const Icon = option.icon;
               return (
                 <Link
                   key={option.title}
                   href={option.href}
-                  onClick={() => setBookingType(option.type)}
+                  onClick={() => {
+                    if (option.type) setBookingType(option.type);
+                  }}
                   className="group rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-950 hover:shadow-lg"
                 >
                   <div className="flex items-center justify-between gap-4">

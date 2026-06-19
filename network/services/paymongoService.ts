@@ -151,6 +151,43 @@ export const paymongoService = {
     });
   },
 
+  createAddonPaymentLink: async (payload: {
+    booking_id: number | string;
+    addons: Array<{
+      provider_id: number;
+      service_type: string;
+      provider_name_snapshot: string;
+      provider_rate_snapshot: number;
+      quote_required?: boolean;
+      duration_minutes?: number;
+    }>;
+    amount: number;
+    currency: string;
+    description: string;
+    return_url?: string;
+    [key: string]: unknown;
+  }): Promise<PaymentLinkResponse> => {
+    const endpoints = ['/payments/addons/links', '/api/payments/addons/links'];
+    return attemptEndpoints(endpoints, async (endpoint) => {
+      const response = await api.post<ApiEnvelope<PaymentLinkResponse> | PaymentLinkResponse>(
+        endpoint,
+        payload,
+        { requiresAuth: true }
+      );
+      const paymentLink = unwrapResponse(response);
+      const checkoutUrl = paymentLink.checkout_url || paymentLink.attributes?.checkout_url;
+
+      if (!checkoutUrl) {
+        throw new Error('PayMongo did not return a checkout URL.');
+      }
+
+      return {
+        ...paymentLink,
+        checkout_url: checkoutUrl,
+      };
+    });
+  },
+
   syncPaymentLink: async (linkId: string): Promise<PaymentLinkSyncResponse> => {
     const endpoints = [
       `/payments/links/${linkId}/sync`,

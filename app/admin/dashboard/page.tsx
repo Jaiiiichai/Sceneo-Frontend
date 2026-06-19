@@ -154,6 +154,18 @@ const mapAddonsToServices = (addons?: ApiBooking['booking_addons']) => {
   const services: Booking['services'] = {};
   if (!addons?.length) return services;
 
+  const cleanMakeupAddonName = (currentName: string | undefined, nextName: string) => {
+    if (!currentName) return nextName;
+
+    const artistPrefix = currentName.split(' - ')[0]?.trim();
+    const cleanedNextName =
+      artistPrefix && nextName.startsWith(`${artistPrefix} - `)
+        ? nextName.slice(artistPrefix.length + 3)
+        : nextName;
+
+    return `${currentName} • ${cleanedNextName}`;
+  };
+
   addons.forEach((addon) => {
     if (!addon.provider_name_snapshot || !addon.service_type) return;
     const normalizedType = addon.service_type.toLowerCase();
@@ -167,7 +179,10 @@ const mapAddonsToServices = (addons?: ApiBooking['booking_addons']) => {
     } else if (normalizedType.includes('edit')) {
       services.editor = { enabled: true, name: addon.provider_name_snapshot };
     } else if (normalizedType.includes('make')) {
-      services.makeupArtist = { enabled: true, name: addon.provider_name_snapshot };
+      services.makeupArtist = {
+        enabled: true,
+        name: cleanMakeupAddonName(services.makeupArtist?.name, addon.provider_name_snapshot),
+      };
     }
   });
 
@@ -348,6 +363,11 @@ export default function AdminDashboard() {
     is_active: true,
   });
   const [editingProviderId, setEditingProviderId] = useState<number | null>(null);
+  const [providerDeleteModal, setProviderDeleteModal] = useState<{
+    show: boolean;
+    providerId: number | null;
+    providerName: string;
+  }>({ show: false, providerId: null, providerName: '' });
   const dutyModalProvider = providers.find(provider => provider.id === dutyModalProviderId) || null;
   const scheduleModalProvider = providers.find(provider => provider.id === scheduleModalProviderId) || null;
   const scheduleModalSchedules = scheduleModalProvider
@@ -441,16 +461,23 @@ export default function AdminDashboard() {
     e.preventDefault();
 
     const isPhotography = providerForm.service_type === 'photography';
+    const isEditor = providerForm.service_type === 'editor';
+    const isMakeupArtist = providerForm.service_type === 'make_up_artist';
 
     if (
       !providerForm.full_name.trim() ||
-      (!isPhotography && !providerForm.rate) ||
+      (isEditor && (!providerForm.rate || !providerForm.rate_30_minutes || !providerForm.rate_60_minutes)) ||
+      (!isPhotography && !isMakeupArtist && !providerForm.rate) ||
       (isPhotography && (!providerForm.rate_30_minutes || !providerForm.rate_60_minutes))
     ) {
       showConfirmation(
         isPhotography
           ? 'Please fill in provider name, 30-minute rate, and 60-minute rate.'
-          : 'Please fill in provider name and rate.',
+          : isEditor
+            ? 'Please fill in provider name and all editor package rates.'
+          : isMakeupArtist
+            ? 'Please fill in provider name.'
+            : 'Please fill in provider name and rate.',
         'error'
       );
       return;
@@ -459,9 +486,9 @@ export default function AdminDashboard() {
     const payload = {
       full_name: providerForm.full_name.trim(),
       service_type: providerForm.service_type,
-      rate: isPhotography ? Number(providerForm.rate_60_minutes) : Number(providerForm.rate),
-      rate_30_minutes: isPhotography ? Number(providerForm.rate_30_minutes) : null,
-      rate_60_minutes: isPhotography ? Number(providerForm.rate_60_minutes) : null,
+      rate: isPhotography ? Number(providerForm.rate_60_minutes) : isMakeupArtist ? 0 : Number(providerForm.rate),
+      rate_30_minutes: isPhotography || isEditor ? Number(providerForm.rate_30_minutes) : null,
+      rate_60_minutes: isPhotography || isEditor ? Number(providerForm.rate_60_minutes) : null,
       quote_required: providerForm.quote_required,
     };
 
@@ -490,9 +517,9 @@ export default function AdminDashboard() {
     setProviderForm({
       full_name: provider.full_name,
       service_type: provider.service_type,
-      rate: String(provider.rate),
-      rate_30_minutes: provider.rate_30_minutes ? String(provider.rate_30_minutes) : '',
-      rate_60_minutes: provider.rate_60_minutes ? String(provider.rate_60_minutes) : '',
+      rate: provider.service_type === 'make_up_artist' ? '' : String(provider.rate),
+      rate_30_minutes: provider.rate_30_minutes ? String(provider.rate_30_minutes) : provider.service_type === 'editor' ? '850' : '',
+      rate_60_minutes: provider.rate_60_minutes ? String(provider.rate_60_minutes) : provider.service_type === 'editor' ? '1200' : '',
       quote_required: Boolean(provider.quote_required),
     });
   };
@@ -557,10 +584,25 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteProvider = async (providerId: number) => {
+  const requestDeleteProvider = (provider: Provider) => {
+    setProviderDeleteModal({
+      show: true,
+      providerId: provider.id,
+      providerName: provider.full_name,
+    });
+  };
+
+  const cancelDeleteProvider = () => {
+    setProviderDeleteModal({ show: false, providerId: null, providerName: '' });
+  };
+
+  const handleDeleteProvider = async () => {
+    if (!providerDeleteModal.providerId) return;
+
     try {
-      await api.delete(`/providers/${providerId}`, { requiresAuth: true });
+      await api.delete(`/providers/${providerDeleteModal.providerId}`, { requiresAuth: true });
       showConfirmation('Provider deleted successfully.', 'success');
+      cancelDeleteProvider();
       await fetchProviders();
     } catch {
       showConfirmation('Failed to delete provider.', 'error');
@@ -1630,7 +1672,11 @@ export default function AdminDashboard() {
                           <p className="text-sm text-gray-600">
                             {provider.service_type === 'photography'
                               ? `Rates: 30 min ₱${Number(provider.rate_30_minutes ?? provider.rate ?? 0).toLocaleString()} / 60 min ₱${Number(provider.rate_60_minutes ?? provider.rate ?? 0).toLocaleString()}`
-                              : `Rate: ₱${Number(provider.rate).toLocaleString()}`}
+                              : provider.service_type === 'editor'
+                                ? `Rates: 10 photos ₱${Number(provider.rate ?? 0).toLocaleString()} / 20 photos ₱${Number(provider.rate_30_minutes ?? 0).toLocaleString()} / 30 photos ₱${Number(provider.rate_60_minutes ?? 0).toLocaleString()}`
+                              : provider.service_type === 'make_up_artist'
+                                ? 'Package rates fixed'
+                                : `Rate: ₱${Number(provider.rate).toLocaleString()}`}
                           </p>
                         </div>
                         <div className="flex gap-2">
@@ -1664,7 +1710,7 @@ export default function AdminDashboard() {
                           <button
                             onClick={(event) => {
                               event.stopPropagation();
-                              handleDeleteProvider(provider.id);
+                              requestDeleteProvider(provider);
                             }}
                             className="px-3 py-2 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
                           >
@@ -1705,8 +1751,9 @@ export default function AdminDashboard() {
                     onChange={(e) => setProviderForm(prev => ({
                       ...prev,
                       service_type: e.target.value,
-                      rate_30_minutes: e.target.value === 'photography' ? (prev.rate_30_minutes || '1000') : '',
-                      rate_60_minutes: e.target.value === 'photography' ? (prev.rate_60_minutes || '1800') : '',
+                      rate: e.target.value === 'make_up_artist' ? '' : e.target.value === 'editor' ? '500' : prev.rate,
+                      rate_30_minutes: e.target.value === 'photography' ? '1000' : e.target.value === 'editor' ? '850' : '',
+                      rate_60_minutes: e.target.value === 'photography' ? '1800' : e.target.value === 'editor' ? '1200' : '',
                     }))}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
                   >
@@ -1740,6 +1787,46 @@ export default function AdminDashboard() {
                         placeholder="1500"
                       />
                     </div>
+                  </div>
+                ) : providerForm.service_type === 'editor' ? (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">10-photo Rate</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={providerForm.rate}
+                        onChange={(e) => setProviderForm(prev => ({ ...prev, rate: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        placeholder="500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">20-photo Rate</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={providerForm.rate_30_minutes}
+                        onChange={(e) => setProviderForm(prev => ({ ...prev, rate_30_minutes: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        placeholder="850"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">30-photo Rate</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={providerForm.rate_60_minutes}
+                        onChange={(e) => setProviderForm(prev => ({ ...prev, rate_60_minutes: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        placeholder="1200"
+                      />
+                    </div>
+                  </div>
+                ) : providerForm.service_type === 'make_up_artist' ? (
+                  <div className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-semibold text-rose-900">
+                    HMUA package rates are fixed in checkout. Add only the artist name and duty schedules here.
                   </div>
                 ) : (
                   <div>
@@ -2296,6 +2383,33 @@ export default function AdminDashboard() {
                 }`}
               >
                 {loading ? 'Processing...' : (confirmModal.action === 'open' ? 'Open Date' : 'Close Date')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {providerDeleteModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md animate-slide-up rounded-lg border border-slate-200 bg-white p-6 shadow-xl shadow-slate-950/15">
+            <h3 className="mb-2 text-xl font-black text-gray-900">Delete Provider?</h3>
+            <p className="mb-6 text-gray-600">
+              Are you sure you want to delete <span className="font-bold">{providerDeleteModal.providerName}</span>? Existing bookings will not be removed, but this provider will no longer be available.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={cancelDeleteProvider}
+                disabled={providersLoading}
+                className="flex-1 rounded-lg bg-slate-100 px-4 py-3 font-bold text-slate-700 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteProvider}
+                disabled={providersLoading}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-3 font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {providersLoading ? 'Deleting...' : 'Delete Provider'}
               </button>
             </div>
           </div>

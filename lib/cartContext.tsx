@@ -31,6 +31,7 @@ export interface ServiceAddon {
   providerRate: number;
   quoteRequired?: boolean;
   durationMinutes?: number;
+  requestOnly?: boolean;
 }
 
 interface CartContextType {
@@ -38,6 +39,7 @@ interface CartContextType {
   addItem: (item: CartItem) => Promise<void>;
    updateItem: (updatedItem: CartItem) => void;
   attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string; durationMinutes?: number }) => Promise<boolean>;
+  attachServicesToLatestSlot: (services: ServiceAddon[], replaceServiceTypes?: string[]) => Promise<boolean>;
   removeItem: (id: string) => Promise<void>;
   clearCart: () => Promise<void>;
   updateItemQuantity: (id: string, quantity: number) => Promise<void>;
@@ -155,33 +157,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string; durationMinutes?: number }) => {
+  const attachServicesToLatestSlot = async (services: ServiceAddon[], replaceServiceTypes?: string[]) => {
     let updated = false;
 
     setItems(prevItems => {
       const targetIndex = [...prevItems].reverse().findIndex(item => Boolean(item.timeSlotId));
-      if (targetIndex === -1) return prevItems;
+      if (targetIndex === -1 || services.length === 0) return prevItems;
 
       const actualIndex = prevItems.length - 1 - targetIndex;
       const nextItems = [...prevItems];
-      const nextAddon = {
-        providerId: service.providerId,
-        serviceType: service.serviceType,
-        providerName: service.providerName,
-        providerRate: service.providerRate ?? 0,
-        quoteRequired: service.quoteRequired,
-        durationMinutes: service.durationMinutes,
-      };
+      const typesToReplace = replaceServiceTypes || services.map(service => service.serviceType);
       const serviceAddons = [
-        ...(nextItems[actualIndex].serviceAddons || []).filter((addon) => addon.serviceType !== service.serviceType),
-        nextAddon,
+        ...(nextItems[actualIndex].serviceAddons || []).filter((addon) => !typesToReplace.includes(addon.serviceType)),
+        ...services,
       ];
+      const primaryAddon = services[0];
       nextItems[actualIndex] = {
         ...nextItems[actualIndex],
-        serviceProviderId: service.providerId,
-        serviceType: service.serviceType,
-        serviceProviderName: service.providerName,
-        serviceProviderRate: service.providerRate,
+        serviceProviderId: primaryAddon.providerId,
+        serviceType: primaryAddon.serviceType,
+        serviceProviderName: primaryAddon.providerName,
+        serviceProviderRate: primaryAddon.providerRate,
         serviceAddons,
       };
       updated = true;
@@ -189,13 +185,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
 
     if (updated) {
-      showToast('Service attached to selected booking.', 'success');
+      showToast(services.length > 1 ? 'Services attached to selected booking.' : 'Service attached to selected booking.', 'success');
       return true;
     }
 
     showToast('No slot booking found to attach this service.', 'error');
     return false;
   };
+
+  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string; durationMinutes?: number }) => (
+    attachServicesToLatestSlot([
+      {
+        providerId: service.providerId,
+        serviceType: service.serviceType,
+        providerName: service.providerName,
+        providerRate: service.providerRate ?? 0,
+        quoteRequired: service.quoteRequired,
+        durationMinutes: service.durationMinutes,
+      },
+    ])
+  );
 
   const updateItemQuantity = async (id: string, quantity: number) => {
     const targetItem = items.find(item => item.id === id);
@@ -258,7 +267,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <CartContext.Provider value={{ items, addItem, updateItem, attachServiceToLatestSlot, removeItem, clearCart, updateItemQuantity, isOpen, setIsOpen }}>
+    <CartContext.Provider value={{ items, addItem, updateItem, attachServiceToLatestSlot, attachServicesToLatestSlot, removeItem, clearCart, updateItemQuantity, isOpen, setIsOpen }}>
       {children}
     </CartContext.Provider>
   );

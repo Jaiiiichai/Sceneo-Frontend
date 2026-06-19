@@ -107,9 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 404) {
           localStorage.removeItem('authToken');
           setToken(null);
+          setUser(null);
         }
         return;
       }
@@ -147,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         // If token is invalid, clear it
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 404) {
           logout(true);
         }
         return;

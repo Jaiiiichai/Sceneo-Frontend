@@ -49,7 +49,7 @@ export default function GlobalPaymentMonitor() {
       try {
         const result = await paymongoService.syncPaymentLink(trackedPaymongoLinkId);
 
-        if (result.status === "paid") {
+        if (result.status === "paid" || result.status === "addon_paid") {
           if (!cancelled) {
             const pendingDraft = getPendingPaymentBooking();
             clearPendingPaymentBooking();
@@ -58,7 +58,12 @@ export default function GlobalPaymentMonitor() {
             }
             setTrackedPaymongoLinkId(null);
             setShowPaymentSuccessModal(true);
-            showToast("Payment confirmed. Your booking is paid.", "success");
+            showToast(
+              result.status === "addon_paid"
+                ? "Payment confirmed. Your add-ons were added."
+                : "Payment confirmed. Your booking is paid.",
+              "success"
+            );
           }
           return;
         }
@@ -96,7 +101,7 @@ export default function GlobalPaymentMonitor() {
       <div className="bg-white rounded-xl p-6 border border-slate-200 max-w-md w-full mx-4 shadow-2xl">
         <h3 className="text-2xl font-bold text-slate-950 mb-3">Payment Successful</h3>
         <p className="text-slate-700 text-lg leading-relaxed mb-8">
-          Your booking is done and payment was received successfully.
+          Your payment was received successfully.
         </p>
         <button
           type="button"
