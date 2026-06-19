@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Users, DollarSign, TrendingUp, LogOut, Eye, EyeOff, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight, Plus, Trash2, TicketPercent, LockKeyhole } from 'lucide-react';
+import { Calendar, Users, CalendarDays, TrendingUp, LogOut, Eye, EyeOff, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight, Plus, Trash2, TicketPercent, LockKeyhole } from 'lucide-react';
 import { api } from '@/network';
+
+type BookingStatus = 'pending' | 'confirmed' | 'paid' | 'completed' | 'cancelled' | 'no_show';
 
 interface Booking {
   id: string;
@@ -16,7 +18,7 @@ interface Booking {
   time: string;
   duration: string;
   price: string;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  status: BookingStatus;
   services: {
     photographer?: {
       enabled: boolean;
@@ -43,7 +45,7 @@ interface ApiBooking {
   booking_type: 'professional_slots' | 'whole_studio' | 'Whole Studio' | 'Studio Slot';
   booking_date: string;
   booking_time: string;
-  booking_status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  booking_status: BookingStatus;
   booking_price: number;
   service_type?: string;
   service_provider_id?: number;
@@ -185,6 +187,26 @@ const formatServiceTypeLabel = (serviceType?: string) => {
   }
 };
 
+const formatBookingStatusLabel = (status: BookingStatus) =>
+  status.split('_').join(' ').toUpperCase();
+
+const getBookingStatusClass = (status: BookingStatus) => {
+  switch (status) {
+    case 'confirmed':
+    case 'paid':
+      return 'bg-green-100 text-green-700';
+    case 'pending':
+      return 'bg-orange-100 text-orange-700';
+    case 'completed':
+      return 'bg-blue-100 text-blue-700';
+    case 'no_show':
+      return 'bg-purple-100 text-purple-700';
+    case 'cancelled':
+    default:
+      return 'bg-red-100 text-red-700';
+  }
+};
+
 const formatDateTimeLocal = (value?: string | null) => {
   if (!value) return '';
   const date = new Date(value);
@@ -201,6 +223,21 @@ const formatDateInput = (value?: string | null) => {
 const formatPromoBookingDate = (value?: string | null) => {
   if (!value) return 'No limit';
   return formatDisplayDate(value.slice(0, 10));
+};
+
+const formatMonthKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
+const formatMonthLabel = (monthKey: string) => {
+  if (!monthKey) return 'Selected month';
+  const [year, month] = monthKey.split('-').map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  });
 };
 
 const formatPromoWindow = (value?: string | null) => {
@@ -238,12 +275,12 @@ export default function AdminDashboard() {
   const [admin, setAdmin] = useState<AdminUser | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'availability' | 'providers' | 'promos'>('overview');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>('all');
   const [dateFilter, setDateFilter] = useState<string>(''); // Empty string means show all dates
   const [nameFilter, setNameFilter] = useState<string>('');
   const [confirmationToast, setConfirmationToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({ show: false, message: '', type: 'success' });
   const [confirmModal, setConfirmModal] = useState<{ show: boolean; date: string; action: 'open' | 'close'; formattedDate: string }>({ show: false, date: '', action: 'open', formattedDate: '' });
-  const [statusChangeModal, setStatusChangeModal] = useState<{ show: boolean; bookingId: string; customerName: string; currentStatus: Booking['status']; newStatus: Booking['status'] } | null>(null);
+  const [statusChangeModal, setStatusChangeModal] = useState<{ show: boolean; bookingId: string; customerName: string; currentStatus: BookingStatus; newStatus: BookingStatus } | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
 
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -270,6 +307,9 @@ export default function AdminDashboard() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [providerSchedules, setProviderSchedules] = useState<ProviderSchedule[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<number | null>(null);
+  const [scheduleModalProviderId, setScheduleModalProviderId] = useState<number | null>(null);
+  const [scheduleModalMonth, setScheduleModalMonth] = useState(formatMonthKey(new Date()));
+  const [dutyModalProviderId, setDutyModalProviderId] = useState<number | null>(null);
   const [providersLoading, setProvidersLoading] = useState(false);
   const [providerForm, setProviderForm] = useState({
     full_name: '',
@@ -308,12 +348,16 @@ export default function AdminDashboard() {
     is_active: true,
   });
   const [editingProviderId, setEditingProviderId] = useState<number | null>(null);
-  const selectedProvider = providers.find(provider => provider.id === selectedProviderId) || null;
-  const selectedProviderSchedules = selectedProvider
+  const dutyModalProvider = providers.find(provider => provider.id === dutyModalProviderId) || null;
+  const scheduleModalProvider = providers.find(provider => provider.id === scheduleModalProviderId) || null;
+  const scheduleModalSchedules = scheduleModalProvider
     ? providerSchedules
-        .filter(schedule => schedule.provider_id === selectedProvider.id)
+        .filter(schedule => schedule.provider_id === scheduleModalProvider.id)
         .sort((a, b) => `${a.duty_date} ${a.start_time}`.localeCompare(`${b.duty_date} ${b.start_time}`))
     : [];
+  const filteredScheduleModalSchedules = scheduleModalSchedules.filter(schedule =>
+    schedule.duty_date?.slice(0, 7) === scheduleModalMonth
+  );
 
   const getProviderScheduleCount = (providerId: number) =>
     providerSchedules.filter(schedule => schedule.provider_id === providerId).length;
@@ -321,6 +365,17 @@ export default function AdminDashboard() {
   const selectProviderForSchedule = (provider: Provider) => {
     setSelectedProviderId(provider.id);
     setScheduleForm(prev => ({ ...prev, provider_id: String(provider.id) }));
+  };
+
+  const openProviderScheduleModal = (provider: Provider) => {
+    selectProviderForSchedule(provider);
+    setScheduleModalProviderId(provider.id);
+    setScheduleModalMonth(formatMonthKey(new Date()));
+  };
+
+  const openDutyModal = (provider: Provider) => {
+    selectProviderForSchedule(provider);
+    setDutyModalProviderId(provider.id);
   };
 
   // Fetch closed dates from API
@@ -485,6 +540,7 @@ export default function AdminDashboard() {
 
       showConfirmation(`Provider duty schedule added for ${dates.length} day(s).`, 'success');
       setScheduleForm(prev => ({ ...prev, start_date: '', end_date: '' }));
+      setDutyModalProviderId(null);
       await fetchProviderSchedules();
     } catch {
       showConfirmation('Failed to save provider schedule.', 'error');
@@ -706,10 +762,13 @@ export default function AdminDashboard() {
     router.push('/admin');
   };
 
+  const today = new Date();
+  const todayDateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
   const stats = {
     totalBookings: bookings.length,
     pendingBookings: bookings.filter(b => b.status === 'pending').length,
-    revenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + parseFloat(b.price.replace(/[^0-9.]/g, '')), 0),
+    todayBookings: bookings.filter(b => b.rawDate === todayDateKey).length,
     completionRate: bookings.length > 0
       ? Math.round((bookings.filter(b => b.status === 'completed').length / bookings.length) * 100)
       : 0,
@@ -785,7 +844,7 @@ export default function AdminDashboard() {
     }, 3000);
   };
 
-  const requestBookingStatusChange = (booking: Booking, newStatus: Booking['status']) => {
+  const requestBookingStatusChange = (booking: Booking, newStatus: BookingStatus) => {
     if (booking.status === newStatus) return;
 
     setStatusChangeModal({
@@ -821,7 +880,7 @@ export default function AdminDashboard() {
         return { ...prev, status: statusChangeModal.newStatus };
       });
 
-      showConfirmation(`Booking status updated to ${statusChangeModal.newStatus.toUpperCase()}`, 'success');
+      showConfirmation(`Booking status updated to ${formatBookingStatusLabel(statusChangeModal.newStatus)}`, 'success');
       setStatusChangeModal(null);
     } catch {
       showConfirmation('Failed to update booking status.', 'error');
@@ -1003,12 +1062,12 @@ export default function AdminDashboard() {
 
               <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-green-50">
-                    <DollarSign className="text-green-600" size={22} />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-teal-50">
+                    <CalendarDays className="text-teal-700" size={22} />
                   </div>
-                  <span className="text-3xl font-black text-gray-900">₱{stats.revenue.toFixed(0)}</span>
+                  <span className="text-3xl font-black text-gray-900">{stats.todayBookings}</span>
                 </div>
-                <p className="text-sm font-semibold text-gray-600">Total Revenue</p>
+                <p className="text-sm font-semibold text-gray-600">Bookings Scheduled Today</p>
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -1038,13 +1097,8 @@ export default function AdminDashboard() {
                       <p className="font-bold text-gray-900">{booking.customerName}</p>
                       <p className="text-sm text-gray-600">{booking.studio} • {booking.date}</p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                      booking.status === 'pending' ? 'bg-orange-100 text-orange-700' :
-                      booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {booking.status.toUpperCase()}
+                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${getBookingStatusClass(booking.status)}`}>
+                      {formatBookingStatusLabel(booking.status)}
                     </span>
                   </div>
                 ))}
@@ -1171,6 +1225,16 @@ export default function AdminDashboard() {
                 >
                   Cancelled
                 </button>
+                <button
+                  onClick={() => setStatusFilter('no_show')}
+                  className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
+                    statusFilter === 'no_show'
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  No Show
+                </button>
               </div>
 
               <div className="space-y-3">
@@ -1210,13 +1274,8 @@ export default function AdminDashboard() {
                         <p className="font-bold text-gray-900">{booking.customerName}</p>
                         <p className="text-sm text-gray-600">{booking.email}</p>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                        booking.status === 'pending' ? 'bg-orange-100 text-orange-700' :
-                        booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {booking.status.toUpperCase()}
+                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${getBookingStatusClass(booking.status)}`}>
+                        {formatBookingStatusLabel(booking.status)}
                       </span>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-gray-600">
@@ -1276,13 +1335,13 @@ export default function AdminDashboard() {
             </div>
 
             {/* Booking Details */}
-            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-28 lg:self-start">
-              <div className="mb-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-28 lg:flex lg:max-h-[calc(100vh-8rem)] lg:flex-col lg:self-start lg:overflow-hidden">
+              <div className="mb-4 shrink-0">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Selected</p>
                 <h2 className="text-2xl font-black text-slate-950">Booking Details</h2>
               </div>
               {selectedBooking ? (
-                <div className="space-y-4">
+                <div className="space-y-4 lg:overflow-y-auto lg:pr-2 lg:pb-2">
                   <div className="rounded-lg bg-slate-50 p-4">
                     <p className="text-sm font-semibold text-gray-600 mb-1">Customer</p>
                     <p className="font-bold text-gray-900">{selectedBooking.customerName}</p>
@@ -1351,26 +1410,37 @@ export default function AdminDashboard() {
                   <div className="rounded-lg border border-slate-200 p-4">
                     <p className="text-sm font-semibold text-gray-600 mb-2">Status</p>
                     <div className="flex flex-col gap-2">
-                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold text-center ${
-                        selectedBooking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                        selectedBooking.status === 'pending' ? 'bg-orange-100 text-orange-700' :
-                        selectedBooking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {selectedBooking.status.toUpperCase()}
+                      <span className={`inline-block rounded-full px-3 py-1 text-center text-sm font-bold ${getBookingStatusClass(selectedBooking.status)}`}>
+                        {formatBookingStatusLabel(selectedBooking.status)}
                       </span>
                       
-                      <p className="text-xs font-semibold text-gray-600 mt-2 mb-1">Change Status:</p>
-                      <select
-                        value={selectedBooking.status}
-                        onChange={(event) => requestBookingStatusChange(selectedBooking, event.target.value as Booking['status'])}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
+                      <p className="mt-3 text-xs font-semibold text-gray-600">Change Status</p>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <button
+                          type="button"
+                          disabled={selectedBooking.status === 'completed'}
+                          onClick={() => requestBookingStatusChange(selectedBooking, 'completed')}
+                          className="rounded-lg bg-blue-100 px-3 py-2 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Completed
+                        </button>
+                        <button
+                          type="button"
+                          disabled={selectedBooking.status === 'cancelled'}
+                          onClick={() => requestBookingStatusChange(selectedBooking, 'cancelled')}
+                          className="rounded-lg bg-red-100 px-3 py-2 text-xs font-bold text-red-700 transition-colors hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Cancelled
+                        </button>
+                        <button
+                          type="button"
+                          disabled={selectedBooking.status === 'no_show'}
+                          onClick={() => requestBookingStatusChange(selectedBooking, 'no_show')}
+                          className="rounded-lg bg-purple-100 px-3 py-2 text-xs font-bold text-purple-700 transition-colors hover:bg-purple-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          No Show
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1538,7 +1608,7 @@ export default function AdminDashboard() {
                   {providers.map(provider => (
                     <div
                       key={provider.id}
-                      onClick={() => selectProviderForSchedule(provider)}
+                      onClick={() => openProviderScheduleModal(provider)}
                       className={`cursor-pointer rounded-lg border p-4 transition-colors ${
                         selectedProviderId === provider.id ? 'border-slate-950 bg-slate-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-400'
                       }`}
@@ -1567,6 +1637,24 @@ export default function AdminDashboard() {
                           <button
                             onClick={(event) => {
                               event.stopPropagation();
+                              openProviderScheduleModal(provider);
+                            }}
+                            className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                          >
+                            View Schedules
+                          </button>
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openDutyModal(provider);
+                            }}
+                            className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-950 text-white hover:bg-slate-800 transition-colors"
+                          >
+                            <span className="inline-flex items-center gap-1"><Plus size={12} /> Add Duty</span>
+                          </button>
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
                               handleEditProvider(provider);
                             }}
                             className="px-3 py-2 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
@@ -1584,42 +1672,6 @@ export default function AdminDashboard() {
                           </button>
                         </div>
                       </div>
-                      {selectedProviderId === provider.id && (
-                        <div className="mt-4 border-t border-slate-200 pt-4">
-                          <div className="flex items-center justify-between gap-3 mb-3">
-                            <h3 className="font-bold text-gray-900">Schedules</h3>
-                            <span className="text-xs font-semibold text-gray-500">
-                              {selectedProviderSchedules.length} duty day(s)
-                            </span>
-                          </div>
-                          {selectedProviderSchedules.length === 0 ? (
-                            <p className="text-sm text-gray-500">No duty schedules yet.</p>
-                          ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {selectedProviderSchedules.map(schedule => (
-                                <div key={schedule.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
-                                  <div>
-                                    <p className="text-sm font-bold text-gray-900">{formatDisplayDate(schedule.duty_date)}</p>
-                                    <p className="text-xs text-gray-600">
-                                      {formatDisplayTime(schedule.start_time)} - {formatDisplayTime(schedule.end_time)}
-                                    </p>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      handleDeleteSchedule(schedule.id);
-                                    }}
-                                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -1735,75 +1787,208 @@ export default function AdminDashboard() {
               </form>
             </div>
 
-            <div className="lg:col-span-3 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-4">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Duty Calendar</p>
-                  <h2 className="text-2xl font-black text-slate-950">Add Duty Schedule</h2>
-                  <p className="text-sm text-gray-600">
-                    Select a provider card above, then add one day or a date range with the same hours.
-                  </p>
-                </div>
-                {selectedProvider && (
-                  <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-800">
-                    Selected: {selectedProvider.full_name}
+            {dutyModalProvider && (
+              <div
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4 py-6"
+                onClick={() => setDutyModalProviderId(null)}
+              >
+                <div
+                  className="w-full max-w-2xl rounded-lg bg-white shadow-2xl"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Duty Calendar</p>
+                      <h3 className="text-2xl font-black text-slate-950">Add Duty Schedule</h3>
+                      <p className="text-sm text-slate-600">
+                        Add one day or a date range with the same working hours.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDutyModalProviderId(null)}
+                      className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950"
+                      aria-label="Close add duty modal"
+                    >
+                      <XCircle size={22} />
+                    </button>
                   </div>
-                )}
-              </div>
 
-              <form onSubmit={handleScheduleSubmit} className="grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-6">
-                <select
-                  value={scheduleForm.provider_id}
-                  onChange={(e) => {
-                    const providerId = Number(e.target.value);
-                    setScheduleForm(prev => ({ ...prev, provider_id: e.target.value }));
-                    setSelectedProviderId(Number.isFinite(providerId) ? providerId : null);
-                  }}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
+                  <form onSubmit={handleScheduleSubmit} className="space-y-4 p-5">
+                    <div>
+                      <label className="mb-1 block text-sm font-bold text-slate-700">Provider</label>
+                      <select
+                        value={scheduleForm.provider_id}
+                        onChange={(e) => {
+                          const providerId = Number(e.target.value);
+                          setScheduleForm(prev => ({ ...prev, provider_id: e.target.value }));
+                          setSelectedProviderId(Number.isFinite(providerId) ? providerId : null);
+                          setDutyModalProviderId(Number.isFinite(providerId) ? providerId : null);
+                        }}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                      >
+                        <option value="">Select provider</option>
+                        {providers.map(provider => (
+                          <option key={provider.id} value={provider.id}>
+                            {provider.full_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Start Date</label>
+                        <input
+                          type="date"
+                          value={scheduleForm.start_date}
+                          onChange={(e) => setScheduleForm(prev => ({ ...prev, start_date: e.target.value, end_date: prev.end_date || e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">End Date</label>
+                        <input
+                          type="date"
+                          value={scheduleForm.end_date}
+                          onChange={(e) => setScheduleForm(prev => ({ ...prev, end_date: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Start Time</label>
+                        <input
+                          type="time"
+                          value={scheduleForm.start_time}
+                          onChange={(e) => setScheduleForm(prev => ({ ...prev, start_time: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">End Time</label>
+                        <input
+                          type="time"
+                          value={scheduleForm.end_time}
+                          onChange={(e) => setScheduleForm(prev => ({ ...prev, end_time: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setDutyModalProviderId(null)}
+                        className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="rounded-lg bg-slate-950 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-800"
+                      >
+                        <span className="inline-flex items-center gap-2"><Plus size={14} /> Add Duty</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {scheduleModalProvider && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6"
+                onClick={() => setScheduleModalProviderId(null)}
+              >
+                <div
+                  className="flex max-h-[88vh] w-full max-w-3xl flex-col rounded-lg bg-white shadow-2xl"
+                  onClick={(event) => event.stopPropagation()}
                 >
-                  <option value="">Select provider</option>
-                  {providers.map(provider => (
-                    <option key={provider.id} value={provider.id}>
-                      {provider.full_name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="date"
-                  value={scheduleForm.start_date}
-                  onChange={(e) => setScheduleForm(prev => ({ ...prev, start_date: e.target.value, end_date: prev.end_date || e.target.value }))}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
-                  aria-label="Start date"
-                />
-                <input
-                  type="date"
-                  value={scheduleForm.end_date}
-                  onChange={(e) => setScheduleForm(prev => ({ ...prev, end_date: e.target.value }))}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
-                  aria-label="End date"
-                />
-                <input
-                  type="time"
-                  value={scheduleForm.start_time}
-                  onChange={(e) => setScheduleForm(prev => ({ ...prev, start_time: e.target.value }))}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
-                  aria-label="Start time"
-                />
-                <input
-                  type="time"
-                  value={scheduleForm.end_time}
-                  onChange={(e) => setScheduleForm(prev => ({ ...prev, end_time: e.target.value }))}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
-                  aria-label="End time"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-slate-800"
-                >
-                  Add Duty
-                </button>
-              </form>
-            </div>
+                  <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">
+                        Provider Schedule
+                      </p>
+                      <h3 className="text-2xl font-black text-slate-950">{scheduleModalProvider.full_name}</h3>
+                      <p className="text-sm text-slate-600">
+                        {formatServiceTypeLabel(scheduleModalProvider.service_type)} · {scheduleModalSchedules.length} assigned duty day(s)
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleModalProviderId(null)}
+                      className="self-end rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 sm:self-start"
+                      aria-label="Close schedule modal"
+                    >
+                      <XCircle size={22} />
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-slate-950">{formatMonthLabel(scheduleModalMonth)}</p>
+                      <p className="text-xs text-slate-500">
+                        {filteredScheduleModalSchedules.length} duty day(s) in this month
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        type="month"
+                        value={scheduleModalMonth}
+                        onChange={(event) => setScheduleModalMonth(event.target.value)}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 focus:border-slate-950 focus:outline-none"
+                        aria-label="Filter schedules by month"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => openDutyModal(scheduleModalProvider)}
+                        className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-slate-800"
+                      >
+                        <span className="inline-flex items-center gap-2"><Plus size={14} /> Add Duty</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-y-auto p-4">
+                    {filteredScheduleModalSchedules.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+                        <CalendarDays size={38} className="mx-auto mb-3 text-slate-300" />
+                        <p className="font-bold text-slate-700">No duty schedules for this month</p>
+                        <p className="mt-1 text-sm text-slate-500">Choose another month or add a duty schedule.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-lg border border-slate-200">
+                        {filteredScheduleModalSchedules.map((schedule, index) => (
+                          <div
+                            key={schedule.id}
+                            className={`grid gap-3 bg-white p-4 sm:grid-cols-[1fr_auto] sm:items-center ${
+                              index === 0 ? '' : 'border-t border-slate-100'
+                            }`}
+                          >
+                            <div>
+                              <p className="font-black text-slate-950">{formatDisplayDate(schedule.duty_date)}</p>
+                              <p className="mt-1 text-sm font-semibold text-slate-600">
+                                {formatDisplayTime(schedule.start_time)} - {formatDisplayTime(schedule.end_time)}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSchedule(schedule.id)}
+                              className="rounded-lg bg-red-100 px-3 py-2 text-xs font-bold text-red-700 transition-colors hover:bg-red-200"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -2142,8 +2327,8 @@ export default function AdminDashboard() {
             <h3 className="text-xl font-black text-gray-900 mb-2">Confirm Status Update</h3>
             <p className="text-gray-600 mb-6">
               Change booking status for <span className="font-bold">{statusChangeModal.customerName}</span> from{' '}
-              <span className="font-bold uppercase">{statusChangeModal.currentStatus}</span> to{' '}
-              <span className="font-bold uppercase">{statusChangeModal.newStatus}</span>?
+              <span className="font-bold">{formatBookingStatusLabel(statusChangeModal.currentStatus)}</span> to{' '}
+              <span className="font-bold">{formatBookingStatusLabel(statusChangeModal.newStatus)}</span>?
             </p>
             <div className="flex gap-3">
               <button
