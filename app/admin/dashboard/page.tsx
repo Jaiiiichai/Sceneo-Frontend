@@ -766,7 +766,7 @@ export default function AdminDashboard() {
   const todayDateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   const stats = {
-    totalBookings: bookings.length,
+    totalBookings: bookings.filter(b => b.status === 'paid').length,
     pendingBookings: bookings.filter(b => b.status === 'pending').length,
     todayBookings: bookings.filter(b => b.rawDate === todayDateKey).length,
     completionRate: bookings.length > 0
@@ -1047,7 +1047,7 @@ export default function AdminDashboard() {
                   </div>
                   <span className="text-3xl font-black text-gray-900">{stats.totalBookings}</span>
                 </div>
-                <p className="text-sm font-semibold text-gray-600">Total Bookings</p>
+                <p className="text-sm font-semibold text-gray-600">Paid Bookings</p>
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
