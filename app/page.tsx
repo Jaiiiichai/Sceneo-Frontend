@@ -11,6 +11,7 @@ import {
   Clock3,
   Images,
   Sparkles,
+  ShieldCheck,
   Users,
   X,
 } from 'lucide-react';
@@ -300,6 +301,30 @@ export default function Home() {
                 </Link>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-lg border border-slate-300 bg-white p-6 shadow-sm sm:p-8">
+            <div className="flex flex-col gap-5 md:flex-row md:items-start">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white">
+                <ShieldCheck size={24} />
+              </div>
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.22em] text-teal-700">Studio Policy</p>
+                <h2 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">Only guest with confirmed bookings are allowed inside the studio</h2>
+                <p className="mt-4 max-w-4xl leading-7 text-slate-600">
+                  To ensure a comfortable and enjoyable experience for everyone, only guests with a confirmed booking may enter the studio.
+                  This includes companions, children, personal makeup artists, personal photographers, and other accompanying guests.
+                  If they wish to enter the studio, a booking is required.
+                </p>
+                <p className="mt-3 max-w-4xl leading-7 text-slate-600">
+                  Thank you for your understanding and cooperation as we work to keep Sceneo Studio organized, comfortable, and enjoyable for all our guests.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

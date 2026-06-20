@@ -36,6 +36,8 @@ export default function BookingCheckoutPage() {
   const [promoMessage, setPromoMessage] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountedBasePrice: number } | null>(null);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [showStudioEntryPolicyModal, setShowStudioEntryPolicyModal] = useState(false);
+  const [acceptedStudioEntryPolicy, setAcceptedStudioEntryPolicy] = useState(false);
   const [pendingProviderRemoval, setPendingProviderRemoval] = useState<{
     itemId: string;
     serviceType?: string;
@@ -256,6 +258,11 @@ export default function BookingCheckoutPage() {
       return;
     }
 
+    if (!acceptedStudioEntryPolicy) {
+      setShowStudioEntryPolicyModal(true);
+      return;
+    }
+
     setSubmitting(true);
     setSubmissionStage('preparing');
     const paymentWindow = typeof window !== 'undefined' ? window.open('', '_blank') : null;
@@ -426,6 +433,15 @@ export default function BookingCheckoutPage() {
       setSubmitting(false);
       setSubmissionStage('idle');
     }
+  };
+
+  const confirmStudioEntryPolicy = () => {
+    setAcceptedStudioEntryPolicy(true);
+    setShowStudioEntryPolicyModal(false);
+    window.setTimeout(() => {
+      const form = document.getElementById('bookingForm') as HTMLFormElement | null;
+      form?.requestSubmit();
+    }, 0);
   };
 
   useEffect(() => {
@@ -966,6 +982,58 @@ export default function BookingCheckoutPage() {
                 className="px-5 py-2.5 rounded-lg bg-gray-900 text-white font-semibold hover:bg-black"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showStudioEntryPolicyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close studio policy"
+            onClick={() => setShowStudioEntryPolicyModal(false)}
+          />
+          <div className="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
+            <div className="mb-5 flex items-start gap-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white">
+                <ShieldCheck size={24} />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">Studio Policy</p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">Please confirm before payment</h2>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-sm leading-7 text-slate-700">
+              <p>
+                To ensure a comfortable and enjoyable experience for everyone, only guests with a confirmed booking may enter the studio.
+              </p>
+              <p>
+                This includes companions, children, personal makeup artists, personal photographers, and other accompanying guests.
+                If they wish to enter the studio, a booking is required.
+              </p>
+              <p>
+                Thank you for your understanding and cooperation as we work to keep Sceneo Studio organized, comfortable, and enjoyable for all our guests.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowStudioEntryPolicyModal(false)}
+                className="rounded-lg bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 transition-colors hover:bg-slate-200"
+              >
+                Go Back
+              </button>
+              <button
+                type="button"
+                onClick={confirmStudioEntryPolicy}
+                className="rounded-lg bg-slate-950 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-slate-800"
+              >
+                I Agree, Proceed to Payment
               </button>
             </div>
           </div>
