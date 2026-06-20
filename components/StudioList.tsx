@@ -75,7 +75,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
             endTime: slot.endTime,
             name: bookingType === 'whole_studio' ? 'STUDIO RENTAL' : `PROFESSIONAL SESSION`,
             subDetails: [slot.description],
-            duration: '55 MIN',
+            duration: '60 MIN',
             price: slot.priceDisplay,
             status,
             icon: bookingType === 'whole_studio' ? '🏢' : '📸',

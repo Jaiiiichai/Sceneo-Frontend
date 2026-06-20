@@ -7,7 +7,7 @@ import { useBookingType } from '@/lib/bookingContext'; // Import useBookingType
 import { Building2, CalendarCheck } from 'lucide-react';
 
 export default function BookingPage() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const { bookingType, setBookingType } = useBookingType(); // Consume bookingType from context
 
   useEffect(() => {

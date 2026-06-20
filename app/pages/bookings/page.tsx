@@ -32,6 +32,8 @@ type ApiBooking = {
   booking_addons?: Array<{
     provider_name_snapshot?: string;
     service_type?: string;
+    duration_minutes?: number | null;
+    start_offset_minutes?: number | null;
   }>;
 };
 
@@ -85,6 +87,22 @@ const formatAddonServiceType = (serviceType?: string) => {
   return (serviceType || 'Service').split('_').join(' ');
 };
 
+const formatPhotographyDuration = (durationMinutes?: number | null, startOffsetMinutes?: number | null) => {
+  if (durationMinutes === 30 && Number(startOffsetMinutes || 0) === 0) return 'First 30 mins';
+  if (durationMinutes === 30 && Number(startOffsetMinutes || 0) === 30) return 'Last 30 mins';
+  if (durationMinutes === 60) return 'Full 1 hour';
+  if (durationMinutes) return `${durationMinutes} minutes`;
+  return '';
+};
+
+const formatBookingAddon = (addon: NonNullable<ApiBooking['booking_addons']>[number]) => {
+  const base = `${formatAddonServiceType(addon.service_type)}: ${addon.provider_name_snapshot || 'Provider'}`;
+  if (addon.service_type !== 'photography') return base;
+
+  const durationLabel = formatPhotographyDuration(addon.duration_minutes, addon.start_offset_minutes);
+  return durationLabel ? `${base} (${durationLabel})` : base;
+};
+
 const statusClasses: Record<BookingStatus, string> = {
   pending: 'bg-amber-100 text-amber-800 border-amber-200',
   paid: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -121,7 +139,7 @@ const toHistoryBooking = (booking: ApiBooking): HistoryBooking => {
     priceAmount,
     provider: booking.booking_addons?.length
       ? booking.booking_addons
-          .map((addon) => `${formatAddonServiceType(addon.service_type)}: ${addon.provider_name_snapshot || 'Provider'}`)
+          .map(formatBookingAddon)
           .join(', ')
       : booking.providers?.full_name,
     createdAt: booking.created_at ? formatDate(booking.created_at.split('T')[0]) : 'N/A',
@@ -839,7 +857,7 @@ export default function BookingsHistoryPage() {
                   className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-slate-950 hover:bg-white"
                 >
                   <p className="font-black text-slate-950">Photographer</p>
-                  <p className="mt-1 text-sm text-slate-600">Add photographer coverage for this booking time.</p>
+                  <p className="mt-1 text-sm text-slate-600">Add photographer coverage for this booking time, with FREE 5 edited photos.</p>
                 </button>
                 <button
                   type="button"

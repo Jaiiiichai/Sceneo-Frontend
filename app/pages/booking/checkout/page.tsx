@@ -132,6 +132,7 @@ export default function BookingCheckoutPage() {
       providerName: item.serviceProviderName,
       providerRate: item.serviceProviderRate ?? 0,
       durationMinutes: item.serviceAddons?.[0]?.durationMinutes,
+      startOffsetMinutes: item.serviceAddons?.[0]?.startOffsetMinutes,
     }];
   };
 
@@ -381,6 +382,7 @@ export default function BookingCheckoutPage() {
           provider_rate_snapshot: addon.quoteRequired ? 0 : addon.providerRate,
           quote_required: Boolean(addon.quoteRequired),
           duration_minutes: addon.durationMinutes || null,
+          start_offset_minutes: addon.startOffsetMinutes ?? null,
         })),
       };
 
@@ -472,6 +474,9 @@ export default function BookingCheckoutPage() {
     const providerDurationParam = searchParams.get('provider_duration_minutes');
     const parsedProviderDuration = providerDurationParam ? Number(providerDurationParam) : undefined;
     const validProviderDuration = Number.isFinite(parsedProviderDuration) ? parsedProviderDuration : undefined;
+    const providerStartOffsetParam = searchParams.get('provider_start_offset_minutes');
+    const parsedProviderStartOffset = providerStartOffsetParam ? Number(providerStartOffsetParam) : undefined;
+    const validProviderStartOffset = Number.isFinite(parsedProviderStartOffset) ? parsedProviderStartOffset : undefined;
     const validProviderId = Number.isFinite(parsedProviderId) ? parsedProviderId : undefined;
     const serviceAddons = validProviderId && providerTypeParam && providerNameParam
       ? [{
@@ -481,6 +486,7 @@ export default function BookingCheckoutPage() {
           providerRate: providerRateParam ? Number(providerRateParam) : 0,
           quoteRequired: providerQuoteRequiredParam,
           durationMinutes: validProviderDuration,
+          startOffsetMinutes: validProviderStartOffset,
         }]
       : undefined;
 
@@ -673,7 +679,7 @@ export default function BookingCheckoutPage() {
                     <Camera size={22} />
                   </div>
                   <h3 className="mb-1 font-black text-slate-950">Photographer</h3>
-                  <p className="text-sm text-slate-600">Choose an available photographer for your schedule.</p>
+                  <p className="text-sm text-slate-600">Choose an available photographer for your schedule, with FREE 5 edited photos.</p>
                 </button>
                 <button
                   type="button"
@@ -748,7 +754,14 @@ export default function BookingCheckoutPage() {
             <div className="text-sm text-gray-200">
               {addon.providerName}
               {addon.durationMinutes ? (
-                <span className="text-gray-400"> - {addon.durationMinutes} min</span>
+                <span className="text-gray-400">
+                  {' - '}
+                  {addon.durationMinutes === 30 && addon.startOffsetMinutes === 0
+                    ? 'First 30 mins'
+                    : addon.durationMinutes === 30 && addon.startOffsetMinutes === 30
+                      ? 'Last 30 mins'
+                      : `${addon.durationMinutes} min`}
+                </span>
               ) : null}
               <span className="text-gray-400"> - {addon.requestOnly ? 'Available on request' : addon.quoteRequired ? 'For quotation' : `PHP ${Number(addon.providerRate).toLocaleString()}`}</span>
             </div>

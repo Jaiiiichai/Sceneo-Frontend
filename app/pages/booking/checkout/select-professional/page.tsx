@@ -19,9 +19,17 @@ interface Provider {
   rate_30_minutes?: number | null;
   rate_60_minutes?: number | null;
   available_durations?: number[];
+  available_photography_options?: PhotographyOption[];
   remaining_minutes?: number;
   quote_required?: boolean;
 }
+
+type PhotographyOption = {
+  key: string;
+  label: string;
+  duration_minutes: 30 | 60;
+  start_offset_minutes: 0 | 30;
+};
 
 const HMUA_PACKAGE_OPTIONS = [
   {
@@ -185,7 +193,7 @@ export default function SelectProfessionalPage() {
 
   const handleSelectEditorPackage = async (pro: Provider, option: typeof EDITOR_PACKAGE_OPTIONS[number]) => {
     const providerRate = getEditorPackageRate(pro, option.rateKey);
-    await handleSelectProfessional(pro, undefined, {
+    await handleSelectProfessional(pro, undefined, undefined, {
       providerName: `${pro.full_name} - ${option.label}`,
       providerRate,
     });
@@ -219,6 +227,7 @@ export default function SelectProfessionalPage() {
     provider_rate_snapshot: addon.providerRate,
     quote_required: Boolean(addon.quoteRequired),
     duration_minutes: addon.durationMinutes,
+    start_offset_minutes: addon.startOffsetMinutes,
   }));
 
   const handleExistingBookingAddons = async (addons: ServiceAddon[], label: string) => {
@@ -361,19 +370,25 @@ export default function SelectProfessionalPage() {
     return addons;
   };
 
-  const getAvailablePhotographyDurations = (pro: Provider): Array<30 | 60> => {
-    if (Array.isArray(pro.available_durations) && pro.available_durations.length > 0) {
-      return pro.available_durations
-        .filter((duration): duration is 30 | 60 => duration === 30 || duration === 60)
-        .sort((a, b) => a - b);
+  const getAvailablePhotographyOptions = (pro: Provider): PhotographyOption[] => {
+    if (Array.isArray(pro.available_photography_options) && pro.available_photography_options.length > 0) {
+      return pro.available_photography_options.filter((option): option is PhotographyOption => (
+        (option.duration_minutes === 30 || option.duration_minutes === 60) &&
+        (option.start_offset_minutes === 0 || option.start_offset_minutes === 30)
+      ));
     }
 
-    return [30, 60];
+    return [
+      { key: 'first_30', label: 'First 30 mins', duration_minutes: 30, start_offset_minutes: 0 },
+      { key: 'last_30', label: 'Last 30 mins', duration_minutes: 30, start_offset_minutes: 30 },
+      { key: 'full_60', label: 'Full 1 hour', duration_minutes: 60, start_offset_minutes: 0 },
+    ];
   };
 
   const handleSelectProfessional = async (
     pro: Provider,
     durationMinutes?: 30 | 60,
+    startOffsetMinutes?: 0 | 30,
     override?: { providerName?: string; providerRate?: number }
   ) => {
     const providerRate = override?.providerRate ?? getProviderRateForSelection(pro, durationMinutes);
@@ -386,6 +401,7 @@ export default function SelectProfessionalPage() {
         providerRate,
         quoteRequired: pro.quote_required,
         durationMinutes,
+        startOffsetMinutes,
       },
     ], providerName);
     if (existingBookingFlowHandled) return;
@@ -409,6 +425,7 @@ export default function SelectProfessionalPage() {
         providerRate,
         quoteRequired: pro.quote_required,
         durationMinutes,
+        startOffsetMinutes,
         updatedPrice: latestSlot.price,
       });
 
@@ -441,6 +458,7 @@ export default function SelectProfessionalPage() {
             providerRate,
             quoteRequired: pro.quote_required,
             durationMinutes,
+            startOffsetMinutes,
           },
         ],
       });
@@ -461,6 +479,11 @@ export default function SelectProfessionalPage() {
       params.set('provider_duration_minutes', String(durationMinutes));
     } else {
       params.delete('provider_duration_minutes');
+    }
+    if (startOffsetMinutes != null) {
+      params.set('provider_start_offset_minutes', String(startOffsetMinutes));
+    } else {
+      params.delete('provider_start_offset_minutes');
     }
 
     router.push(`/pages/booking/checkout?${params.toString()}`);
@@ -519,6 +542,7 @@ export default function SelectProfessionalPage() {
 
   const isAddonPaymentMode = Boolean(getAddonBookingId());
   const isPendingAddonMode = getAddonBookingStatus() === 'pending';
+  const selectedServiceType = resolveServiceType(getSearchParams().get('type'));
 
   return (
     <main className="min-h-screen bg-[#e5e7eb] py-12 pt-28">
@@ -527,7 +551,9 @@ export default function SelectProfessionalPage() {
           <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">Booking add-ons</p>
           <h1 className="mt-2 text-3xl font-black text-slate-950 sm:text-4xl">{pageTitle}</h1>
           <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-600">
-            {isAddonPaymentMode
+            {selectedServiceType === 'photography'
+              ? 'All raw photos will be provided for photography sessions, with FREE 5 edited photos. Professional photo editing beyond the free set may be purchased as an optional add-on.'
+              : isAddonPaymentMode
               ? isPendingAddonMode
                 ? 'Choose an add-on for your pending booking. It will be added to your unpaid balance.'
                 : 'Choose an add-on for your paid booking. Payment is required before it is attached.'
@@ -561,7 +587,12 @@ export default function SelectProfessionalPage() {
                       <p className="mt-2 text-sm font-semibold text-slate-500">Select how many edited photos you need.</p>
                     )}
                     {p.service_type === 'make_up_artist' && (
-                      <p className="mt-2 text-sm font-semibold text-slate-500">Choose a makeup package and optional requests.</p>
+                      <div className="mt-2 space-y-2">
+                        <p className="text-sm font-semibold text-slate-500">Choose a makeup package and optional requests.</p>
+                        <p className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-900">
+                          Please arrive at least 1 hour before your scheduled session if you have a makeup appointment.
+                        </p>
+                      </div>
                     )}
                   </div>
                   <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-black text-slate-900">
@@ -601,20 +632,23 @@ export default function SelectProfessionalPage() {
                     ))}
                   </div>
                 ) : p.service_type === 'photography' && !p.quote_required ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {getAvailablePhotographyDurations(p).map((duration) => (
-                      <button
-                        key={`${p.id}-${duration}`}
-                        onClick={() => askToAddProvider(
-                          p,
-                          `${duration} minutes at PHP ${getPhotographyRate(p, duration).toLocaleString()}`,
-                          () => handleSelectProfessional(p, duration)
-                        )}
-                        className="rounded-lg bg-slate-950 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-slate-800"
-                      >
-                        {duration} min · PHP {getPhotographyRate(p, duration).toLocaleString()}
-                      </button>
-                    ))}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {getAvailablePhotographyOptions(p).map((option) => {
+                      const rate = getPhotographyRate(p, option.duration_minutes);
+                      return (
+                        <button
+                          key={`${p.id}-${option.key}`}
+                          onClick={() => askToAddProvider(
+                            p,
+                            `${option.label} at PHP ${rate.toLocaleString()}`,
+                            () => handleSelectProfessional(p, option.duration_minutes, option.start_offset_minutes)
+                          )}
+                          className="rounded-lg bg-slate-950 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-slate-800"
+                        >
+                          {option.label} · PHP {rate.toLocaleString()}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <button
@@ -700,6 +734,9 @@ export default function SelectProfessionalPage() {
         </div>
 
         <div className="mt-8">
+          <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-900">
+            Please be on time for your session. To ensure a smooth experience for all guests, sessions will start and end as scheduled and cannot be extended due to late arrivals. Thank you for your understanding.
+          </div>
           <button
             onClick={() => router.push(isAddonPaymentMode ? '/pages/bookings' : getCheckoutUrl())}
             className="px-6 py-3 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors font-semibold"

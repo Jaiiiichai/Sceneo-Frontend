@@ -19,6 +19,7 @@ interface ClosedDate {
 export default function DateSelector({ onDateSelect, selectedDate }: DateSelectorProps) {
   const [scrollPosition, setScrollPosition] = useState(0);
   const [closedDates, setClosedDates] = useState<string[]>([]);
+  const [closedDatesLoaded, setClosedDatesLoaded] = useState(false);
 
   // Fetch closed dates from API
   useEffect(() => {
@@ -32,6 +33,8 @@ export default function DateSelector({ onDateSelect, selectedDate }: DateSelecto
           setClosedDates(dates);
         }
       } catch {
+      } finally {
+        setClosedDatesLoaded(true);
       }
     };
 
@@ -77,6 +80,19 @@ export default function DateSelector({ onDateSelect, selectedDate }: DateSelecto
     const dateString = `${year}-${month}-${day}`;
     return closedDates.includes(dateString);
   };
+
+  useEffect(() => {
+    if (!closedDatesLoaded) return;
+
+    const selectedDateIsClosed = selectedDate ? isClosed(selectedDate) : true;
+    if (!selectedDateIsClosed) return;
+
+    const nextOpenDate = generateDates().find((date) => !isClosed(date));
+    if (nextOpenDate) {
+      onDateSelect(nextOpenDate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closedDatesLoaded, closedDates, selectedDate]);
 
   return (
     <div className="space-y-3 sm:space-y-4">

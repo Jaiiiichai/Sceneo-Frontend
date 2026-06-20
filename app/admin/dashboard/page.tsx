@@ -24,6 +24,7 @@ interface Booking {
       enabled: boolean;
       name: string;
       durationMinutes?: number;
+      startOffsetMinutes?: number | null;
     };
     editor?: {
       enabled: boolean;
@@ -63,6 +64,7 @@ interface ApiBooking {
     provider_name_snapshot?: string;
     service_type?: string;
     duration_minutes?: number | null;
+    start_offset_minutes?: number | null;
   }>;
 }
 
@@ -150,6 +152,14 @@ const mapProviderToServices = (provider?: { full_name?: string; service_type?: s
   return services;
 };
 
+const formatPhotographyDuration = (durationMinutes?: number | null, startOffsetMinutes?: number | null) => {
+  if (durationMinutes === 30 && Number(startOffsetMinutes || 0) === 0) return 'First 30 mins';
+  if (durationMinutes === 30 && Number(startOffsetMinutes || 0) === 30) return 'Last 30 mins';
+  if (durationMinutes === 60) return 'Full 1 hour';
+  if (durationMinutes) return `${durationMinutes} minutes`;
+  return '';
+};
+
 const mapAddonsToServices = (addons?: ApiBooking['booking_addons']) => {
   const services: Booking['services'] = {};
   if (!addons?.length) return services;
@@ -175,6 +185,7 @@ const mapAddonsToServices = (addons?: ApiBooking['booking_addons']) => {
         enabled: true,
         name: addon.provider_name_snapshot,
         durationMinutes: addon.duration_minutes || undefined,
+        startOffsetMinutes: addon.start_offset_minutes,
       };
     } else if (normalizedType.includes('edit')) {
       services.editor = { enabled: true, name: addon.provider_name_snapshot };
@@ -277,7 +288,7 @@ const mapApiBookingToBooking = (booking: ApiBooking): Booking => ({
     : 'STUDIO SLOT',
   date: formatDisplayDate(booking.booking_date),
   time: formatDisplayTime(booking.booking_time),
-  duration: '55 MIN',
+  duration: '60 MIN',
   price: `₱${Number(booking.booking_price || 0).toLocaleString()}`,
   status: booking.booking_status,
   services: booking.booking_addons?.length
@@ -1419,7 +1430,10 @@ export default function AdminDashboard() {
                               <p className="text-sm text-gray-600">{selectedBooking.services.photographer.name}</p>
                               {selectedBooking.services.photographer.durationMinutes && (
                                 <p className="text-xs font-semibold text-gray-500">
-                                  {selectedBooking.services.photographer.durationMinutes} minutes
+                                  {formatPhotographyDuration(
+                                    selectedBooking.services.photographer.durationMinutes,
+                                    selectedBooking.services.photographer.startOffsetMinutes
+                                  )}
                                 </p>
                               )}
                             </div>

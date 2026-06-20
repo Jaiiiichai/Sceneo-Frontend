@@ -160,6 +160,7 @@ export const paymongoService = {
       provider_rate_snapshot: number;
       quote_required?: boolean;
       duration_minutes?: number;
+      start_offset_minutes?: number;
     }>;
     amount: number;
     currency: string;

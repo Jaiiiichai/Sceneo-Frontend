@@ -114,7 +114,7 @@ export default function TimeSlotSelection({ selectedDate, onSlotSelect, selected
       <div className="mt-6 p-4 bg-blue-50 rounded-lg">
         <div className="space-y-2">
           <p className="text-sm text-gray-600">
-            <span className="font-semibold">Booking Duration:</span> 55 minutes per slot
+            <span className="font-semibold">Booking Duration:</span> 60 minutes per slot
           </p>
           <p className="text-sm text-gray-600">
             <span className="font-semibold">Note:</span> {timeSlots[0]?.description}

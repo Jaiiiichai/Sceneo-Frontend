@@ -136,7 +136,7 @@ const galleryImages = sceneFolders.map((scene) => {
 const bookingOptions = [
   {
     title: 'Book a Slot',
-    description: 'Reserve a scheduled studio slot for portraits, products, content, or quick creative sessions.',
+    description: 'Reserve a photography session and enjoy access to our curated studio sets for your selected time slot. Perfect for self-shoots, professional shoots, and special occasions.',
     href: '/pages/booking?bookingType=slot',
     type: 'slot' as const,
     icon: CalendarCheck,
@@ -144,7 +144,7 @@ const bookingOptions = [
   },
   {
     title: 'Whole Studio',
-    description: 'Get exclusive access to the space for productions, events, team shoots, and longer sessions.',
+    description: 'Enjoy exclusive use of the entire studio during your booking. Ideal for group shoots, private events, content creation, workshops, and commercial productions.',
     href: '/pages/booking?bookingType=whole_studio',
     type: 'whole_studio' as const,
     icon: Building2,

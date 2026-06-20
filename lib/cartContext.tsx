@@ -31,6 +31,7 @@ export interface ServiceAddon {
   providerRate: number;
   quoteRequired?: boolean;
   durationMinutes?: number;
+  startOffsetMinutes?: number;
   requestOnly?: boolean;
 }
 
@@ -38,7 +39,7 @@ interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => Promise<void>;
    updateItem: (updatedItem: CartItem) => void;
-  attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string; durationMinutes?: number }) => Promise<boolean>;
+  attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string; durationMinutes?: number; startOffsetMinutes?: number }) => Promise<boolean>;
   attachServicesToLatestSlot: (services: ServiceAddon[], replaceServiceTypes?: string[]) => Promise<boolean>;
   removeItem: (id: string) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -78,7 +79,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       serverItemId: item.id,
       time: displayTime,
       name: bookingType === 'whole_studio' ? 'STUDIO RENTAL' : 'PROFESSIONAL SESSION',
-      duration: '55 MIN',
+      duration: '60 MIN',
       price: `₱${Number(priceNumber || 0).toLocaleString()}`,
       bookingType,
       bookingDate: item.booking_date,
@@ -193,7 +194,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return false;
   };
 
-  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string; durationMinutes?: number }) => (
+  const attachServiceToLatestSlot = async (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string; durationMinutes?: number; startOffsetMinutes?: number }) => (
     attachServicesToLatestSlot([
       {
         providerId: service.providerId,
@@ -202,6 +203,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         providerRate: service.providerRate ?? 0,
         quoteRequired: service.quoteRequired,
         durationMinutes: service.durationMinutes,
+        startOffsetMinutes: service.startOffsetMinutes,
       },
     ])
   );
