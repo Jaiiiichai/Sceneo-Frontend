@@ -53,8 +53,14 @@ export default function GlobalPaymentMonitor() {
           if (!cancelled) {
             const pendingDraft = getPendingPaymentBooking();
             clearPendingPaymentBooking();
-            if (pendingDraft?.cartItemId) {
-              await removeItem(pendingDraft.cartItemId);
+            const cartItemIds = pendingDraft?.cartItemIds?.length
+              ? pendingDraft.cartItemIds
+              : pendingDraft?.cartItemId
+                ? [pendingDraft.cartItemId]
+                : [];
+
+            for (const cartItemId of cartItemIds) {
+              await removeItem(cartItemId);
             }
             setTrackedPaymongoLinkId(null);
             setShowPaymentSuccessModal(true);

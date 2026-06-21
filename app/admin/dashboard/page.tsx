@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Users, CalendarDays, TrendingUp, LogOut, Eye, EyeOff, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight, Plus, Trash2, TicketPercent, LockKeyhole } from 'lucide-react';
+import { Calendar, Users, CalendarDays, TrendingUp, LogOut, Eye, EyeOff, Check, XCircle, Camera, Edit3, Palette, ChevronLeft, ChevronRight, Plus, Trash2, TicketPercent, LockKeyhole, Package } from 'lucide-react';
 import { api } from '@/network';
 
 type BookingStatus = 'pending' | 'confirmed' | 'paid' | 'completed' | 'cancelled' | 'no_show';
@@ -109,6 +109,17 @@ interface PromoCode {
   max_uses?: number | null;
   used_count: number;
   is_active: boolean;
+}
+
+interface BundlePackage {
+  id: number;
+  name: string;
+  description?: string | null;
+  booking_quantity: number;
+  package_price: number | string;
+  booking_type: 'professional_slots' | 'whole_studio';
+  is_active: boolean;
+  sort_order: number;
 }
 
 interface AdminUser {
@@ -360,6 +371,9 @@ export default function AdminDashboard() {
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
   const [promosLoading, setPromosLoading] = useState(false);
   const [editingPromoId, setEditingPromoId] = useState<number | null>(null);
+  const [bundlePackages, setBundlePackages] = useState<BundlePackage[]>([]);
+  const [bundlesLoading, setBundlesLoading] = useState(false);
+  const [editingBundleId, setEditingBundleId] = useState<number | null>(null);
   const [promoForm, setPromoForm] = useState({
     code: '',
     description: '',
@@ -371,6 +385,15 @@ export default function AdminDashboard() {
     booking_start_date: '',
     booking_end_date: '',
     max_uses: '',
+    is_active: true,
+  });
+  const [bundleForm, setBundleForm] = useState({
+    name: '',
+    description: '',
+    booking_quantity: '2',
+    package_price: '1299',
+    booking_type: 'professional_slots',
+    sort_order: '2',
     is_active: true,
   });
   const [editingProviderId, setEditingProviderId] = useState<number | null>(null);
@@ -643,6 +666,25 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchBundlePackages = async (token = promoAdminToken) => {
+    if (!token) return;
+
+    try {
+      setBundlesLoading(true);
+      const result = await api.get<{ success: boolean; data?: BundlePackage[] }>('/admin/bundle-packages', {
+        requiresAuth: true,
+        headers: getPromoAdminHeaders(token),
+      });
+      setBundlePackages(Array.isArray(result.data) ? result.data : []);
+    } catch {
+      setPromoUnlocked(false);
+      setPromoAdminToken('');
+      showConfirmation('Owner pricing session expired. Please unlock again.', 'error');
+    } finally {
+      setBundlesLoading(false);
+    }
+  };
+
   const handlePromoUnlock = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -665,8 +707,8 @@ export default function AdminDashboard() {
       setPromoAdminToken(token);
       setPromoUnlocked(true);
       setPromoUnlockPassword('');
-      showConfirmation('Promo manager unlocked.', 'success');
-      await fetchPromoCodes(token);
+      showConfirmation('Pricing manager unlocked.', 'success');
+      await Promise.all([fetchPromoCodes(token), fetchBundlePackages(token)]);
     } catch {
       showConfirmation('Invalid owner password.', 'error');
     } finally {
@@ -689,6 +731,88 @@ export default function AdminDashboard() {
       max_uses: '',
       is_active: true,
     });
+  };
+
+  const resetBundleForm = () => {
+    setEditingBundleId(null);
+    setBundleForm({
+      name: '',
+      description: '',
+      booking_quantity: '2',
+      package_price: '1299',
+      booking_type: 'professional_slots',
+      sort_order: '2',
+      is_active: true,
+    });
+  };
+
+  const buildBundlePayload = () => ({
+    name: bundleForm.name.trim(),
+    description: bundleForm.description.trim() || null,
+    booking_quantity: Number(bundleForm.booking_quantity),
+    package_price: Number(bundleForm.package_price),
+    booking_type: bundleForm.booking_type,
+    sort_order: Number(bundleForm.sort_order || bundleForm.booking_quantity || 0),
+    is_active: bundleForm.is_active,
+  });
+
+  const handleBundleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!bundleForm.name.trim() || !bundleForm.booking_quantity || !bundleForm.package_price) {
+      showConfirmation('Please enter package name, quantity, and price.', 'error');
+      return;
+    }
+
+    try {
+      const payload = buildBundlePayload();
+      if (editingBundleId) {
+        await api.put(`/admin/bundle-packages/${editingBundleId}`, payload, {
+          requiresAuth: true,
+          headers: getPromoAdminHeaders(),
+        });
+        showConfirmation('Bundle package updated.', 'success');
+      } else {
+        await api.post('/admin/bundle-packages', payload, {
+          requiresAuth: true,
+          headers: getPromoAdminHeaders(),
+        });
+        showConfirmation('Bundle package created.', 'success');
+      }
+
+      resetBundleForm();
+      await fetchBundlePackages();
+    } catch {
+      showConfirmation('Failed to save bundle package. Check if that quantity already exists.', 'error');
+    }
+  };
+
+  const handleEditBundle = (bundle: BundlePackage) => {
+    setEditingBundleId(bundle.id);
+    setBundleForm({
+      name: bundle.name,
+      description: bundle.description || '',
+      booking_quantity: String(bundle.booking_quantity),
+      package_price: String(bundle.package_price),
+      booking_type: bundle.booking_type || 'professional_slots',
+      sort_order: String(bundle.sort_order ?? bundle.booking_quantity),
+      is_active: bundle.is_active,
+    });
+  };
+
+  const handleDeleteBundle = async (bundleId: number) => {
+    if (!confirm('Delete this bundle package?')) return;
+
+    try {
+      await api.delete(`/admin/bundle-packages/${bundleId}`, {
+        requiresAuth: true,
+        headers: getPromoAdminHeaders(),
+      });
+      showConfirmation('Bundle package deleted.', 'success');
+      await fetchBundlePackages();
+    } catch {
+      showConfirmation('Failed to delete bundle package.', 'error');
+    }
   };
 
   const handlePromoBookingTypeToggle = (bookingType: string) => {
@@ -1071,7 +1195,7 @@ export default function AdminDashboard() {
               activeTab === 'promos' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
             }`}
           >
-            Promo Codes
+            Pricing
           </button>
         </div>
 
@@ -2104,8 +2228,8 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-700">Owner Access</p>
-                    <h2 className="text-2xl font-black text-slate-950">Unlock Promo Manager</h2>
-                    <p className="text-sm text-slate-600">Enter the owner password to manage promo codes.</p>
+                    <h2 className="text-2xl font-black text-slate-950">Unlock Pricing Manager</h2>
+                    <p className="text-sm text-slate-600">Enter the owner password to manage promo codes and bundle packages.</p>
                   </div>
                 </div>
 
@@ -2132,11 +2256,12 @@ export default function AdminDashboard() {
                     disabled={promoUnlocking}
                     className="w-full rounded-lg bg-slate-950 px-4 py-3 font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    {promoUnlocking ? 'Unlocking...' : 'Unlock Promo Manager'}
+                    {promoUnlocking ? 'Unlocking...' : 'Unlock Pricing Manager'}
                   </button>
                 </form>
               </div>
             ) : (
+              <>
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <div className="lg:col-span-2 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -2366,6 +2491,179 @@ export default function AdminDashboard() {
                   </form>
                 </div>
               </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Bundle Packages</p>
+                    <h2 className="text-2xl font-black text-slate-950">Multi-slot Package Pricing</h2>
+                    <p className="text-sm text-slate-600">Set the customer-facing package name, quantity, and package price. Active bundles apply automatically at checkout.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchBundlePackages()}
+                    className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+                  <div>
+                    {bundlesLoading ? (
+                      <p className="text-sm font-semibold text-slate-600">Loading bundle packages...</p>
+                    ) : bundlePackages.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+                        <Package size={44} className="mx-auto mb-3 text-slate-300" />
+                        <p className="font-semibold text-slate-600">No bundle packages yet</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        {bundlePackages.map((bundle) => (
+                          <div key={bundle.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-lg font-black text-slate-950">{bundle.name}</p>
+                                  <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                                    bundle.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'
+                                  }`}>
+                                    {bundle.is_active ? 'Active' : 'Inactive'}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-sm text-slate-600">{bundle.description || 'No description'}</p>
+                                <div className="mt-3 grid gap-2 text-xs font-bold text-slate-600 sm:grid-cols-2">
+                                  <span>Quantity: {bundle.booking_quantity} bookings</span>
+                                  <span>Price: PHP {Number(bundle.package_price || 0).toLocaleString()}</span>
+                                  <span>Type: {bundle.booking_type === 'whole_studio' ? 'Whole Studio' : 'Studio Slot'}</span>
+                                  <span>Sort: {bundle.sort_order}</span>
+                                </div>
+                              </div>
+                              <div className="flex flex-shrink-0 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditBundle(bundle)}
+                                  className="rounded-lg bg-blue-100 px-3 py-2 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-200"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBundle(bundle.id)}
+                                  className="rounded-lg bg-red-100 px-3 py-2 text-xs font-bold text-red-700 transition-colors hover:bg-red-200"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleBundleSubmit} className="h-fit rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Bundle Form</p>
+                    <h3 className="mt-1 text-xl font-black text-slate-950">{editingBundleId ? 'Update Bundle' : 'Add Bundle'}</h3>
+
+                    <div className="mt-4 space-y-3">
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Package Name</label>
+                        <input
+                          value={bundleForm.name}
+                          onChange={(event) => setBundleForm(prev => ({ ...prev, name: event.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
+                          placeholder="2 Slot Bundle"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-bold text-slate-700">Description</label>
+                        <textarea
+                          value={bundleForm.description}
+                          onChange={(event) => setBundleForm(prev => ({ ...prev, description: event.target.value }))}
+                          className="min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
+                          placeholder="Package price for multiple studio slots."
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-sm font-bold text-slate-700">Bookings</label>
+                          <input
+                            type="number"
+                            min="2"
+                            value={bundleForm.booking_quantity}
+                            onChange={(event) => setBundleForm(prev => ({ ...prev, booking_quantity: event.target.value, sort_order: prev.sort_order || event.target.value }))}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-bold text-slate-700">Package Price</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={bundleForm.package_price}
+                            onChange={(event) => setBundleForm(prev => ({ ...prev, package_price: event.target.value }))}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-sm font-bold text-slate-700">Booking Type</label>
+                          <select
+                            value={bundleForm.booking_type}
+                            onChange={(event) => setBundleForm(prev => ({ ...prev, booking_type: event.target.value }))}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
+                          >
+                            <option value="professional_slots">Studio Slot</option>
+                            <option value="whole_studio">Whole Studio</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-bold text-slate-700">Sort Order</label>
+                          <input
+                            type="number"
+                            value={bundleForm.sort_order}
+                            onChange={(event) => setBundleForm(prev => ({ ...prev, sort_order: event.target.value }))}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={bundleForm.is_active}
+                          onChange={(event) => setBundleForm(prev => ({ ...prev, is_active: event.target.checked }))}
+                        />
+                        Active
+                      </label>
+
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          type="submit"
+                          className="flex-1 rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-slate-800"
+                        >
+                          {editingBundleId ? 'Update Bundle' : 'Add Bundle'}
+                        </button>
+                        {editingBundleId && (
+                          <button
+                            type="button"
+                            onClick={resetBundleForm}
+                            className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              </>
             )}
           </div>
         )}

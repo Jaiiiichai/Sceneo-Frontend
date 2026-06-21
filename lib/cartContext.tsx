@@ -13,6 +13,8 @@ export interface CartItem {
   name: string;
   duration: string;
   price: string;
+  quantity?: number;
+  unitPrice?: number;
   // Additional booking details
   bookingType?: 'professional_slots' | 'whole_studio';
   bookingDate?: string; // YYYY-MM-DD format
@@ -38,7 +40,7 @@ export interface ServiceAddon {
 interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => Promise<void>;
-   updateItem: (updatedItem: CartItem) => void;
+  updateItem: (updatedItem: CartItem) => Promise<void>;
   attachServiceToLatestSlot: (service: { providerId: number; serviceType: string; providerName: string; providerRate?: number; quoteRequired?: boolean; updatedPrice?: string; durationMinutes?: number; startOffsetMinutes?: number }) => Promise<boolean>;
   attachServicesToLatestSlot: (services: ServiceAddon[], replaceServiceTypes?: string[]) => Promise<boolean>;
   removeItem: (id: string) => Promise<void>;
@@ -65,14 +67,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
     window.location.href = `/pages/Auth/login?next=${encodeURIComponent(nextPath)}`;
   }, []);
 
-  const updateItem = (updatedItem: CartItem) => {
-  setItems(prev => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
-};
+  const updateItem = async (updatedItem: CartItem) => {
+    const previousItems = items;
+    setItems(prev => prev.map(it => it.id === updatedItem.id ? updatedItem : it));
+
+    if (!updatedItem.serverItemId || !isAuthenticated()) return;
+
+    try {
+      const cart = await cartService.updateItem(updatedItem.serverItemId, {
+        addons: updatedItem.serviceAddons || [],
+      });
+      if (cart?.items) {
+        setItems(cart.items.map(mapApiItemToCartItem));
+      }
+    } catch {
+      setItems(previousItems);
+      showToast('Unable to update add-ons in cart.', 'error');
+    }
+  };
 
   const mapApiItemToCartItem = useCallback((item: CartItemResponse): CartItem => {
     const displayTime = item.time_slots?.display_time || item.time_slot_id;
     const bookingType = item.time_slots?.booking_type || 'professional_slots';
-    const priceNumber = item.line_total ?? item.price_at_time;
+    const quantity = Number(item.quantity || 1);
+    const unitPrice = Number(item.price_at_time || 0);
+    const priceNumber = item.line_total ?? unitPrice * quantity;
 
     return {
       id: `cart-item-${item.id}`,
@@ -81,9 +100,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
       name: bookingType === 'whole_studio' ? 'STUDIO RENTAL' : 'PROFESSIONAL SESSION',
       duration: '60 MIN',
       price: `₱${Number(priceNumber || 0).toLocaleString()}`,
+      quantity,
+      unitPrice,
       bookingType,
       bookingDate: item.booking_date,
       timeSlotId: item.time_slot_id,
+      serviceAddons: item.addons?.map((addon) => ({
+        providerId: Number(addon.providerId || 0),
+        serviceType: addon.serviceType || '',
+        providerName: addon.providerName || '',
+        providerRate: Number(addon.providerRate || 0),
+        quoteRequired: Boolean(addon.quoteRequired),
+        durationMinutes: addon.durationMinutes ?? undefined,
+        startOffsetMinutes: addon.startOffsetMinutes ?? undefined,
+        requestOnly: Boolean(addon.requestOnly),
+      })).filter((addon) => addon.serviceType && addon.providerName),
     };
   }, []);
 
@@ -131,8 +162,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     setItems(prevItems => {
       const incomingKey = getCartItemKey(item);
-      const alreadyExists = prevItems.some(existing => getCartItemKey(existing) === incomingKey);
-      return alreadyExists ? prevItems : [...prevItems, optimisticItem];
+      const existingIndex = prevItems.findIndex(existing => getCartItemKey(existing) === incomingKey);
+      if (existingIndex === -1) {
+        return [...prevItems, { ...optimisticItem, quantity: 1, unitPrice: parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0 }];
+      }
+
+      return prevItems.map((existing, index) => {
+        if (index !== existingIndex) return existing;
+
+        const nextQuantity = Number(existing.quantity || 1) + 1;
+        const unitPrice = existing.unitPrice ?? (parseFloat(existing.price.replace(/[^0-9.]/g, '')) || 0);
+        return {
+          ...existing,
+          serviceProviderId: item.serviceProviderId ?? existing.serviceProviderId,
+          serviceType: item.serviceType ?? existing.serviceType,
+          serviceProviderName: item.serviceProviderName ?? existing.serviceProviderName,
+          serviceProviderRate: item.serviceProviderRate ?? existing.serviceProviderRate,
+          serviceAddons: item.serviceAddons?.length ? item.serviceAddons : existing.serviceAddons,
+          quantity: nextQuantity,
+          unitPrice,
+          price: `₱${(unitPrice * nextQuantity).toLocaleString()}`,
+        };
+      });
     });
     showToast('Item added to cart.', 'success');
 
@@ -141,10 +192,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
         time_slot_id: item.timeSlotId!,
         booking_date: item.bookingDate!,
         quantity: 1,
+        addons: item.serviceAddons,
       });
 
       const mappedItems = (cart?.items || []).map(mapApiItemToCartItem);
-      setItems(mappedItems);
+      const incomingKey = getCartItemKey(item);
+      setItems((previousItems) => mappedItems.map((mappedItem) => {
+        const mappedKey = getCartItemKey(mappedItem);
+        const previousMatch = previousItems.find((previousItem) => getCartItemKey(previousItem) === mappedKey);
+        const source = mappedKey === incomingKey ? item : previousMatch;
+
+        if (!source) return mappedItem;
+
+        return {
+          ...mappedItem,
+          serviceProviderId: source.serviceProviderId,
+          serviceType: source.serviceType,
+          serviceProviderName: source.serviceProviderName,
+          serviceProviderRate: source.serviceProviderRate,
+          serviceAddons: source.serviceAddons,
+        };
+      }));
     } catch (error) {
       if (error instanceof APIError && error.status === 401) {
         setItems(prevItems => prevItems.filter(existing => existing.id !== optimisticId));
@@ -211,24 +279,65 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateItemQuantity = async (id: string, quantity: number) => {
     const targetItem = items.find(item => item.id === id);
     if (!targetItem) return;
+    const previousItem = targetItem;
+    const previousItems = items;
+
+    const applyQuantity = (item: CartItem, nextQuantity: number): CartItem => {
+      const unitPrice = item.unitPrice ?? (parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0) / Math.max(1, Number(item.quantity || 1));
+      return {
+        ...item,
+        quantity: nextQuantity,
+        unitPrice,
+        price: `₱${(unitPrice * nextQuantity).toLocaleString()}`,
+      };
+    };
+
+    if (quantity <= 0) {
+      setItems(prevItems => prevItems.filter((item) => item.id !== id));
+    } else {
+      setItems(prevItems => prevItems.map((item) => (
+        item.id === id ? applyQuantity(item, quantity) : item
+      )));
+    }
 
     if (targetItem.serverItemId && isAuthenticated()) {
       try {
-        await cartService.updateItemQuantity(targetItem.serverItemId, quantity);
-        await loadCart();
+        const cart = await cartService.updateItemQuantity(targetItem.serverItemId, quantity);
+        if (cart?.items) {
+          const mappedItems = cart.items.map(mapApiItemToCartItem);
+          setItems(mappedItems.map((mappedItem) => {
+            const previousMatch = previousItems.find((item) => getCartItemKey(item) === getCartItemKey(mappedItem));
+            if (!previousMatch) return mappedItem;
+
+            return {
+              ...mappedItem,
+              serviceProviderId: previousMatch.serviceProviderId,
+              serviceType: previousMatch.serviceType,
+              serviceProviderName: previousMatch.serviceProviderName,
+              serviceProviderRate: previousMatch.serviceProviderRate,
+              serviceAddons: previousMatch.serviceAddons,
+            };
+          }));
+        }
         if (quantity <= 0) {
           showToast('Item removed from cart.', 'info');
         }
         return;
       } catch {
+        setItems(previousItems);
         showToast('Unable to update item quantity.', 'error');
+        return;
       }
     }
 
     if (quantity <= 0) {
-      setItems(prevItems => prevItems.filter((item) => item.id !== id));
       showToast('Item removed from cart.', 'info');
+      return;
     }
+
+    setItems(prevItems => prevItems.map((item) => (
+      item.id === id ? applyQuantity(previousItem, quantity) : item
+    )));
   };
 
   const removeItem = async (id: string) => {

@@ -4,8 +4,10 @@ export interface PendingPaymentBookingDraft {
   paymentLinkId?: string;
   paymentLinkUrl?: string;
   cartItemId?: string;
+  cartItemIds?: string[];
   bookingPayload?: Record<string, any>;
   bookingId?: string;
+  bookingIds?: string[];
   createdAt: string;
 }
 

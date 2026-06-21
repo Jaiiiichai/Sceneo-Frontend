@@ -5,7 +5,7 @@ export default function BookingLayout({
 }) {
   return (
     <div className="min-h-screen bg-[#e5e7eb]">
-      <div className="mx-auto max-w-7xl px-4 py-8 pt-28 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-5 pt-7 sm:px-6 lg:px-8">
         {children}
       </div>
     </div>

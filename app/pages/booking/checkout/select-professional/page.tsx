@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useCart } from '@/lib/cartContext';
 import { api } from '@/network';
 import { useToast } from '@/lib/toastContext';
-import { getCheckoutDraft, setCheckoutDraft } from '@/lib/checkoutDraft';
+import { getCheckoutDraft, getSelectedCheckoutItemIds, setCheckoutDraft } from '@/lib/checkoutDraft';
 import { ServiceAddon } from '@/lib/cartContext';
 import { paymongoService } from '@/network/services/paymongoService';
 import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
@@ -105,7 +105,7 @@ const getTitleByType = (type: string | null, serviceType: string | null): string
 
 export default function SelectProfessionalPage() {
   const router = useRouter();
-  const { items, attachServiceToLatestSlot, attachServicesToLatestSlot } = useCart();
+  const { items, updateItem } = useCart();
   const { showToast } = useToast();
 
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -131,6 +131,14 @@ export default function SelectProfessionalPage() {
   const getAddonBookingId = () => getSearchParams().get('addonBookingId');
   const getAddonBookingStatus = () => getSearchParams().get('addonBookingStatus');
 
+  const getSelectedCartSlot = () => {
+    const selectedIds = getSelectedCheckoutItemIds();
+    return (
+      items.find((item) => selectedIds.includes(item.id) && Boolean(item.timeSlotId)) ||
+      [...items].reverse().find((item) => Boolean(item.timeSlotId))
+    );
+  };
+
   useEffect(() => {
     const fetchProviders = async () => {
       const searchParams = getSearchParams();
@@ -148,7 +156,7 @@ export default function SelectProfessionalPage() {
 
       try {
         const draft = getCheckoutDraft();
-        const cartSlot = items.find(item => Boolean(item.timeSlotId));
+        const cartSlot = getSelectedCartSlot();
         const bookingDate = searchParams.get('date') || draft?.bookingDate || cartSlot?.bookingDate;
         const bookingTime = searchParams.get('time') || draft?.time || cartSlot?.time;
         const response = await api.get('/providers', {
@@ -414,30 +422,7 @@ export default function SelectProfessionalPage() {
     );
     const hasDraftBooking = Boolean(currentDraft?.timeSlotId);
 
-    if (hasSlotItem) {
-      const latestSlot = items.find(item => Boolean(item.timeSlotId));
-      if (!latestSlot) return;
-
-      const attached = await attachServiceToLatestSlot({
-        providerId: pro.id,
-        serviceType: pro.service_type,
-        providerName,
-        providerRate,
-        quoteRequired: pro.quote_required,
-        durationMinutes,
-        startOffsetMinutes,
-        updatedPrice: latestSlot.price,
-      });
-
-      if (attached) {
-        showToast(`${providerName} added (+PHP ${providerRate.toLocaleString()})`, 'success');
-        router.push(getCheckoutUrl());
-      }
-
-      return;
-    }
-
-    if (!hasDirectBookingParams && !hasDraftBooking) {
+    if (!hasDirectBookingParams && !hasDraftBooking && !hasSlotItem) {
       showToast('Please select a slot first before choosing a provider.', 'error');
       return;
     }
@@ -465,6 +450,36 @@ export default function SelectProfessionalPage() {
 
       showToast(`${providerName} added (+PHP ${providerRate.toLocaleString()})`, 'success');
       router.push('/pages/booking/checkout');
+      return;
+    }
+
+    if (hasSlotItem) {
+      const targetSlot = getSelectedCartSlot();
+      if (!targetSlot) return;
+
+      await updateItem({
+        ...targetSlot,
+        serviceProviderId: pro.id,
+        serviceType: pro.service_type,
+        serviceProviderName: providerName,
+        serviceProviderRate: providerRate,
+        serviceAddons: [
+          ...(targetSlot.serviceAddons || []).filter((addon) => addon.serviceType !== pro.service_type),
+          {
+            providerId: pro.id,
+            serviceType: pro.service_type,
+            providerName,
+            providerRate,
+            quoteRequired: pro.quote_required,
+            durationMinutes,
+            startOffsetMinutes,
+          },
+        ],
+      });
+
+      showToast(`${providerName} added (+PHP ${providerRate.toLocaleString()})`, 'success');
+      router.push(getCheckoutUrl());
+
       return;
     }
 
@@ -503,18 +518,7 @@ export default function SelectProfessionalPage() {
     const existingBookingFlowHandled = await handleExistingBookingAddons(addons, selectedPackageLabel);
     if (existingBookingFlowHandled) return;
 
-    if (hasSlotItem) {
-      const attached = await attachServicesToLatestSlot(addons, HMUA_PACKAGE_SERVICE_TYPES);
-
-      if (attached) {
-        showToast(`${pro.full_name} HMUA package added (+PHP ${total.toLocaleString()})`, 'success');
-        router.push(getCheckoutUrl());
-      }
-
-      return;
-    }
-
-    if (!hasDirectBookingParams && !hasDraftBooking) {
+    if (!hasDirectBookingParams && !hasDraftBooking && !hasSlotItem) {
       showToast('Please select a slot first before choosing a provider.', 'error');
       return;
     }
@@ -537,6 +541,29 @@ export default function SelectProfessionalPage() {
       return;
     }
 
+    if (hasSlotItem) {
+      const targetSlot = getSelectedCartSlot();
+      if (!targetSlot) return;
+
+      const existingAddons = (targetSlot.serviceAddons || []).filter(
+        (addon) => !HMUA_PACKAGE_SERVICE_TYPES.includes(addon.serviceType)
+      );
+
+      await updateItem({
+        ...targetSlot,
+        serviceProviderId: addons[0].providerId,
+        serviceType: addons[0].serviceType,
+        serviceProviderName: addons[0].providerName,
+        serviceProviderRate: addons[0].providerRate,
+        serviceAddons: [...existingAddons, ...addons],
+      });
+
+      showToast(`${pro.full_name} HMUA package added (+PHP ${total.toLocaleString()})`, 'success');
+      router.push(getCheckoutUrl());
+
+      return;
+    }
+
     showToast('Please return to checkout and try adding this HMUA package again.', 'error');
   };
 
@@ -545,7 +572,7 @@ export default function SelectProfessionalPage() {
   const selectedServiceType = resolveServiceType(getSearchParams().get('type'));
 
   return (
-    <main className="min-h-screen bg-[#e5e7eb] py-12 pt-28">
+    <main className="min-h-screen bg-[#e5e7eb] py-5 pt-7">
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <div className="mb-6">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">Booking add-ons</p>

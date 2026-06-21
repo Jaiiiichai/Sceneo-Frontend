@@ -4,6 +4,18 @@ export interface AddCartItemPayload {
   time_slot_id: string;
   booking_date: string;
   quantity: number;
+  addons?: CartAddonPayload[];
+}
+
+export interface CartAddonPayload {
+  providerId?: number | null;
+  serviceType?: string;
+  providerName?: string;
+  providerRate?: number;
+  quoteRequired?: boolean;
+  durationMinutes?: number | null;
+  startOffsetMinutes?: number | null;
+  requestOnly?: boolean;
 }
 
 export interface CartTimeSlot {
@@ -23,6 +35,7 @@ export interface CartItemResponse {
   booking_date: string;
   quantity: number;
   price_at_time: number;
+  addons?: CartAddonPayload[];
   created_at: string;
   time_slots?: CartTimeSlot;
   line_total: number;
@@ -48,8 +61,9 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
-interface QuantityPayload {
-  quantity: number;
+interface UpdateCartItemPayload {
+  quantity?: number;
+  addons?: CartAddonPayload[];
 }
 
 export const cartService = {
@@ -78,9 +92,13 @@ export const cartService = {
   },
 
   updateItemQuantity: async (itemId: number | string, quantity: number): Promise<CartResponse | null> => {
+    return cartService.updateItem(itemId, { quantity });
+  },
+
+  updateItem: async (itemId: number | string, payload: UpdateCartItemPayload): Promise<CartResponse | null> => {
     const response = await api.put<ApiEnvelope<CartResponse> | CartResponse>(
       API_ENDPOINTS.carts.updateItem(itemId),
-      { quantity } as QuantityPayload,
+      payload,
       {
         requiresAuth: true,
       }

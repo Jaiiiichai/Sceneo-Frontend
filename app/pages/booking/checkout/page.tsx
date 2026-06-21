@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import { CartItem, ServiceAddon, useCart } from '@/lib/cartContext';
 import { useAuth } from '@/lib/authContext';
 import { useToast } from '@/lib/toastContext';
-import { clearCheckoutDraft, getCheckoutDraft, setCheckoutDraft } from '@/lib/checkoutDraft';
+import { clearCheckoutDraft, getCheckoutDraft, getSelectedCheckoutItemIds, setCheckoutDraft } from '@/lib/checkoutDraft';
 import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
 import { PAYMENT_STORAGE_EVENT } from '@/components/GlobalPaymentMonitor';
 import { paymongoService } from '@/network/services/paymongoService';
+import bundlePackageService, { BundlePackage } from '@/network/services/bundlePackageService';
 import { api } from '@/network';
-import { CalendarDays, Camera, Palette, PenTool, Receipt, ShieldCheck } from 'lucide-react';
+import { CalendarDays, Camera, Palette, PenTool, Receipt, ShieldCheck, ShoppingCart } from 'lucide-react';
 
 interface PromoValidationResponse {
   success: boolean;
@@ -22,7 +23,7 @@ interface PromoValidationResponse {
 }
 
 export default function BookingCheckoutPage() {
-  const { items, setIsOpen,updateItem } = useCart();
+  const { items, addItem, setIsOpen,updateItem } = useCart();
   const { user, fetchUser, isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
@@ -43,9 +44,12 @@ export default function BookingCheckoutPage() {
     serviceType?: string;
     providerName: string;
   } | null>(null);
+  const [addingToCart, setAddingToCart] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submissionStage, setSubmissionStage] = useState<'idle' | 'preparing' | 'payment'>('idle');
   const [directBookingItem, setDirectBookingItem] = useState<CartItem | null>(null);
+  const [selectedCheckoutItemIds, setSelectedCheckoutItemIdsState] = useState<string[]>([]);
+  const [bundlePackages, setBundlePackages] = useState<BundlePackage[]>([]);
 
   const normalizePhilippinePhone = (input: string): string | null => {
     const compact = input.normalize('NFKC').replace(/[^\d+]/g, '');
@@ -120,7 +124,9 @@ export default function BookingCheckoutPage() {
   const checkoutItems = directBookingItem
     ? [directBookingItem]
     : items.length > 0
-    ? [items[0]]
+    ? selectedCheckoutItemIds.length > 0
+      ? items.filter((item) => selectedCheckoutItemIds.includes(item.id))
+      : items
     : [];
 
   const getItemAddons = (item: CartItem): ServiceAddon[] => {
@@ -136,7 +142,10 @@ export default function BookingCheckoutPage() {
     }];
   };
 
-  const getItemBasePrice = (item: CartItem) => parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
+  const getItemQuantity = (item: CartItem) => Math.max(1, Number(item.quantity || 1));
+  const getItemUnitBasePrice = (item: CartItem) =>
+    Number(item.unitPrice ?? 0) || ((parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0) / getItemQuantity(item));
+  const getItemBasePrice = (item: CartItem) => getItemUnitBasePrice(item) * getItemQuantity(item);
   const getItemAddonsTotal = (item: CartItem) =>
     getItemAddons(item).reduce((sum, addon) => sum + (addon.quoteRequired ? 0 : Number(addon.providerRate || 0)), 0);
   const getAddonServiceLabel = (serviceType: string) => {
@@ -149,10 +158,34 @@ export default function BookingCheckoutPage() {
     return serviceType.split('_').join(' ');
   };
   const getItemTotal = (item: CartItem) => getItemBasePrice(item) + getItemAddonsTotal(item);
+  const getBundleSlotKey = (item: CartItem) => {
+    const bookingType = item.bookingType || 'professional_slots';
+    if (bookingType !== 'professional_slots') return '';
+
+    const slotIdentifier = item.timeSlotId || item.time;
+    if (!item.bookingDate || !slotIdentifier) return '';
+
+    return `${item.bookingDate}__${slotIdentifier}`;
+  };
   const bookingBaseTotal = checkoutItems.reduce((sum, item) => sum + getItemBasePrice(item), 0);
-  const bookingAddonsTotal = checkoutItems.reduce((sum, item) => sum + getItemAddonsTotal(item), 0);
-  const discountedBaseTotal = appliedPromo ? appliedPromo.discountedBasePrice : bookingBaseTotal;
+  const bookingAddonsTotal = checkoutItems.reduce((sum, item) => sum + getItemAddonsTotal(item) * getItemQuantity(item), 0);
+  const professionalSlotQuantity = checkoutItems.reduce((sum, item) => (
+    (item.bookingType || 'professional_slots') === 'professional_slots' ? sum + getItemQuantity(item) : sum
+  ), 0);
+  const allItemsAreProfessionalSlots = checkoutItems.length > 0 && checkoutItems.every((item) => (item.bookingType || 'professional_slots') === 'professional_slots');
+  const professionalSlotKeys = new Set(checkoutItems.map(getBundleSlotKey).filter(Boolean));
+  const hasSingleBundleSlot = allItemsAreProfessionalSlots && professionalSlotKeys.size === 1;
+  const matchedBundle = !appliedPromo && hasSingleBundleSlot
+    ? bundlePackages.find((bundle) => (
+        bundle.is_active &&
+        bundle.booking_type === 'professional_slots' &&
+        Number(bundle.booking_quantity) === professionalSlotQuantity
+      ))
+    : undefined;
+  const bundleBaseTotal = matchedBundle ? Number(matchedBundle.package_price || 0) : bookingBaseTotal;
+  const discountedBaseTotal = appliedPromo ? appliedPromo.discountedBasePrice : bundleBaseTotal;
   const checkoutTotal = discountedBaseTotal + bookingAddonsTotal;
+  const bundleSavings = matchedBundle ? Math.max(0, bookingBaseTotal - bundleBaseTotal) : 0;
 
   // Fetch user data on mount and auto-fill form
   useEffect(() => {
@@ -166,6 +199,19 @@ export default function BookingCheckoutPage() {
     
     loadUserData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const loadBundlePackages = async () => {
+      try {
+        const bundles = await bundlePackageService.listActive();
+        setBundlePackages(bundles);
+      } catch {
+        setBundlePackages([]);
+      }
+    };
+
+    void loadBundlePackages();
   }, []);
 
   // Auto-fill form when user data is available
@@ -189,6 +235,12 @@ export default function BookingCheckoutPage() {
 
     if (!item) {
       setPromoMessage('Select a booking slot before applying a promo code.');
+      return;
+    }
+
+    const totalBookingUnits = checkoutItems.reduce((sum, checkoutItem) => sum + getItemQuantity(checkoutItem), 0);
+    if (totalBookingUnits > 1) {
+      setPromoMessage('Promo codes can only be applied when checking out one booking.');
       return;
     }
 
@@ -229,15 +281,59 @@ export default function BookingCheckoutPage() {
     }
   };
 
+  const canAddCheckoutItemsToCart = checkoutItems.some((item) => !item.serverItemId || getItemAddons(item).length > 0);
+
+  const handleAddCheckoutItemsToCart = async () => {
+    const itemsToAdd = checkoutItems.filter((item) => !item.serverItemId);
+    const itemsToUpdate = checkoutItems.filter((item) => item.serverItemId && getItemAddons(item).length > 0);
+
+    if (itemsToAdd.length === 0 && itemsToUpdate.length === 0) {
+      showToast('This booking is already in your cart.', 'info');
+      setIsOpen(true);
+      return;
+    }
+
+    setAddingToCart(true);
+
+    try {
+      for (const item of itemsToAdd) {
+        await addItem({
+          ...item,
+          quantity: 1,
+          unitPrice: getItemUnitBasePrice(item),
+          price: `₱${getItemUnitBasePrice(item).toLocaleString()}`,
+          serviceAddons: getItemAddons(item),
+        });
+      }
+
+      for (const item of itemsToUpdate) {
+        await updateItem({
+          ...item,
+          serviceAddons: getItemAddons(item),
+        });
+      }
+
+      clearCheckoutDraft();
+      setDirectBookingItem(null);
+      setSelectedCheckoutItemIdsState([]);
+      setIsOpen(true);
+      showToast(
+        itemsToAdd.length > 0
+          ? itemsToAdd.length > 1 ? 'Bookings and add-ons added to cart.' : 'Booking and add-ons added to cart.'
+          : 'Cart add-ons updated.',
+        'success'
+      );
+    } catch {
+      showToast('Unable to add booking to cart right now.', 'error');
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || checkoutItems.length === 0) {
       showToast('Please provide name, email and at least one booking item.', 'error');
-      return;
-    }
-
-    if (checkoutItems.length > 1) {
-      showToast('Please checkout one booking at a time while payment is enabled.', 'error');
       return;
     }
 
@@ -249,6 +345,12 @@ export default function BookingCheckoutPage() {
 
     if (!acceptedTerms) {
       showToast('Please read and agree to all Terms & Conditions before payment.', 'error');
+      return;
+    }
+
+    const totalBookingUnits = checkoutItems.reduce((sum, checkoutItem) => sum + getItemQuantity(checkoutItem), 0);
+    if (appliedPromo && totalBookingUnits > 1) {
+      showToast('Promo codes can only be used when checking out one booking.', 'error');
       return;
     }
     
@@ -283,10 +385,11 @@ export default function BookingCheckoutPage() {
         return uuidMatch ? uuidMatch[0] : id;
       };
 
-      const item = checkoutItems[0];
-      const selectedAddons = getItemAddons(item);
+      const bookingUnits = checkoutItems.flatMap((item) =>
+        Array.from({ length: getItemQuantity(item) }, (_, index) => ({ item, index }))
+      );
 
-      if (selectedAddons.some((addon) => addon.quoteRequired && !addon.requestOnly)) {
+      if (bookingUnits.some(({ item }) => getItemAddons(item).some((addon) => addon.quoteRequired && !addon.requestOnly))) {
         paymentWindow.close();
         showToast('This booking includes a service for quotation. Please wait for admin confirmation before payment.', 'error');
         return;
@@ -328,11 +431,14 @@ export default function BookingCheckoutPage() {
         return serviceType;
       };
 
-      const bookingPrice = checkoutTotal;
-      const primaryAddon = selectedAddons[0];
+      const bookingUnitsWithSlotIds = bookingUnits.map(({ item, index }) => ({
+        item,
+        index,
+        selectedAddons: getItemAddons(item),
+        fallbackTimeSlotId: item.timeSlotId || extractUUID(item.id),
+      }));
 
-      const fallbackTimeSlotId = item.timeSlotId || extractUUID(item.id);
-      if (!fallbackTimeSlotId) {
+      if (bookingUnitsWithSlotIds.some((unit) => !unit.fallbackTimeSlotId)) {
         showToast('Please select a valid booking slot before payment.', 'error');
         return;
       }
@@ -361,45 +467,70 @@ export default function BookingCheckoutPage() {
         return undefined;
       };
 
-      const pendingBookingPayload = {
-        user_id: user?.id || 0,
-        customer_name: name,
-        customer_email: email,
-        customer_phone: toLocalPhilippinePhone(normalizedPhone),
-        booking_type: (item.bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots') as 'whole_studio' | 'professional_slots',
-        booking_date: item.bookingDate || formatLocalDate(new Date()),
-        booking_time: parseTime(item.time),
-        booking_status: 'pending' as const,
-        booking_price: bookingPrice,
-        service_type: normalizeServiceType(primaryAddon?.serviceType || item.serviceType),
-        service_provider_id: primaryAddon?.providerId ?? item.serviceProviderId ?? null,
-        time_slot_id: fallbackTimeSlotId,
-        promo_code: appliedPromo?.code || undefined,
-        addons: selectedAddons.map((addon) => ({
-          provider_id: addon.providerId,
-          service_type: addon.serviceType,
-          provider_name_snapshot: addon.providerName,
-          provider_rate_snapshot: addon.quoteRequired ? 0 : addon.providerRate,
-          quote_required: Boolean(addon.quoteRequired),
-          duration_minutes: addon.durationMinutes || null,
-          start_offset_minutes: addon.startOffsetMinutes ?? null,
-        })),
-      };
+      const totalUnitBasePrice = bookingUnitsWithSlotIds.reduce((sum, { item }) => sum + getItemUnitBasePrice(item), 0);
+      const totalBaseDiscount = Math.round(Math.max(0, totalUnitBasePrice - discountedBaseTotal));
+      let remainingDiscount = totalBaseDiscount;
 
-      const createdBooking = await api.post<CreatedBookingResponse>('/bookings', pendingBookingPayload, { requiresAuth: true });
-      const bookingIdCandidate = getBookingIdFromResponse(createdBooking);
+      const bookingPayloads = bookingUnitsWithSlotIds.map(({ item, selectedAddons, fallbackTimeSlotId }, index) => {
+        const primaryAddon = selectedAddons[0];
+        const unitBasePrice = getItemUnitBasePrice(item);
+        const proportionalDiscount = totalUnitBasePrice > 0
+          ? Math.round(totalBaseDiscount * (unitBasePrice / totalUnitBasePrice))
+          : 0;
+        const baseDiscountForUnit = index === bookingUnitsWithSlotIds.length - 1
+          ? remainingDiscount
+          : Math.min(remainingDiscount, proportionalDiscount);
+        remainingDiscount = Math.max(0, remainingDiscount - baseDiscountForUnit);
 
-      if (!bookingIdCandidate) {
-        paymentWindow.close();
-        showToast('Unable to determine booking ID before payment. Please try again.', 'error');
-        return;
+        return {
+          user_id: user?.id || 0,
+          customer_name: name,
+          customer_email: email,
+          customer_phone: toLocalPhilippinePhone(normalizedPhone),
+          booking_type: (item.bookingType === 'whole_studio' ? 'whole_studio' : 'professional_slots') as 'whole_studio' | 'professional_slots',
+          booking_date: item.bookingDate || formatLocalDate(new Date()),
+          booking_time: parseTime(item.time),
+          booking_status: 'pending' as const,
+          booking_price: Math.max(0, Math.round(unitBasePrice - baseDiscountForUnit)) + Math.round(getItemAddonsTotal(item)),
+          service_type: normalizeServiceType(primaryAddon?.serviceType || item.serviceType),
+          service_provider_id: primaryAddon?.providerId ?? item.serviceProviderId ?? null,
+          time_slot_id: fallbackTimeSlotId,
+          promo_code: appliedPromo?.code || undefined,
+          addons: selectedAddons.map((addon) => ({
+            provider_id: addon.providerId,
+            service_type: addon.serviceType,
+            provider_name_snapshot: addon.providerName,
+            provider_rate_snapshot: addon.quoteRequired ? 0 : addon.providerRate,
+            quote_required: Boolean(addon.quoteRequired),
+            duration_minutes: addon.durationMinutes || null,
+            start_offset_minutes: addon.startOffsetMinutes ?? null,
+          })),
+        };
+      });
+
+      const createdBookingIds: string[] = [];
+      for (const payload of bookingPayloads) {
+        const createdBooking = await api.post<CreatedBookingResponse>('/bookings', payload, { requiresAuth: true });
+        const bookingIdCandidate = getBookingIdFromResponse(createdBooking);
+
+        if (!bookingIdCandidate) {
+          paymentWindow.close();
+          showToast('Unable to determine booking ID before payment. Please try again.', 'error');
+          return;
+        }
+
+        createdBookingIds.push(bookingIdCandidate);
       }
 
       const amount = checkoutTotal;
-      const description = `Sceneo Studio booking ${pendingBookingPayload.booking_date} ${pendingBookingPayload.booking_time}`;
-      const successUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(String(bookingIdCandidate))}`;
+      const firstPayload = bookingPayloads[0];
+      const description = createdBookingIds.length === 1
+        ? `Sceneo Studio booking ${firstPayload.booking_date} ${firstPayload.booking_time}`
+        : `Sceneo Studio ${createdBookingIds.length} bookings`;
+      const successUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(String(createdBookingIds[0]))}`;
       const paymentLink = await paymongoService.createPaymentLink({
-        booking_id: bookingIdCandidate,
+        booking_id: createdBookingIds[0],
+        booking_ids: createdBookingIds,
         amount,
         currency: 'PHP',
         description,
@@ -414,10 +545,11 @@ export default function BookingCheckoutPage() {
       }
 
       setPendingPaymentBooking({
-        bookingId: String(bookingIdCandidate),
+        bookingId: String(createdBookingIds[0]),
+        bookingIds: createdBookingIds,
         paymentLinkId: paymentLink.id,
         paymentLinkUrl: checkoutUrl,
-        cartItemId: item.id,
+        cartItemIds: checkoutItems.map((cartItem) => cartItem.id),
         createdAt: new Date().toISOString(),
       });
       window.dispatchEvent(new Event(PAYMENT_STORAGE_EVENT));
@@ -451,6 +583,7 @@ export default function BookingCheckoutPage() {
     const studioId = searchParams.get('studioId');
     if (!studioId) {
       setDirectBookingItem(getCheckoutDraft());
+      setSelectedCheckoutItemIdsState(getSelectedCheckoutItemIds());
       return;
     }
 
@@ -554,7 +687,7 @@ export default function BookingCheckoutPage() {
 };
 
   return (
-    <main className="min-h-screen bg-[#e5e7eb] py-8 pt-28 sm:py-12">
+    <main className="min-h-screen bg-[#e5e7eb] py-5 pt-7">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -741,6 +874,11 @@ export default function BookingCheckoutPage() {
         <div className="font-semibold text-white text-sm leading-tight">{it.name}</div>
         <div className="font-bold text-white text-sm flex-shrink-0">{it.price}</div>
       </div>
+      {getItemQuantity(it) > 1 && (
+        <div className="mt-1 text-xs font-bold uppercase tracking-wide text-teal-200">
+          Quantity: {getItemQuantity(it)}
+        </div>
+      )}
       <div className="text-sm text-gray-300 mt-1">{it.time} / {it.duration}</div>
       <div className="text-sm text-gray-400 mt-1">
         {it.bookingDate ? new Date(it.bookingDate + 'T00:00:00').toLocaleDateString() : 'No date selected'}
@@ -847,8 +985,20 @@ export default function BookingCheckoutPage() {
 
       <div className="flex justify-between text-gray-300">
         <span>Booking Fee</span>
-        <span className={appliedPromo ? 'line-through opacity-70' : ''}>PHP {bookingBaseTotal.toFixed(2)}</span>
+        <span className={appliedPromo || matchedBundle ? 'line-through opacity-70' : ''}>PHP {bookingBaseTotal.toFixed(2)}</span>
       </div>
+
+      {matchedBundle && (
+        <div className="rounded-lg border border-teal-300/30 bg-teal-300/10 p-3 text-sm text-teal-100">
+          <div className="flex justify-between gap-3 font-bold">
+            <span>{matchedBundle.name}</span>
+            <span>PHP {bundleBaseTotal.toFixed(2)}</span>
+          </div>
+          <p className="mt-1 text-xs text-teal-100/80">
+            Bundle applied for {professionalSlotQuantity} studio slot bookings. You saved PHP {bundleSavings.toFixed(2)}.
+          </p>
+        </div>
+      )}
 
       {appliedPromo && (
         <div className="flex justify-between text-green-300">
@@ -891,12 +1041,28 @@ export default function BookingCheckoutPage() {
       </div>
     </div>
 
+    {canAddCheckoutItemsToCart && (
+      <button
+        type="button"
+        onClick={handleAddCheckoutItemsToCart}
+        disabled={addingToCart || submitting || checkoutItems.length === 0}
+        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-6 py-4 text-lg font-bold text-white transition-all duration-300 hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <ShoppingCart size={20} />
+        {addingToCart
+          ? 'Updating Cart...'
+          : checkoutItems.every((item) => item.serverItemId)
+          ? 'Update Cart Add-ons'
+          : 'Add to Cart'}
+      </button>
+    )}
+
     <button
       form="bookingForm"
       type="submit"
-      disabled={submitting || !acceptedTerms}
-      className={`w-full mt-6 bg-white text-black px-6 py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
-        submitting || !acceptedTerms ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-100 transform hover:scale-105 active:scale-95'
+      disabled={submitting || addingToCart || !acceptedTerms}
+      className={`w-full ${canAddCheckoutItemsToCart ? 'mt-3' : 'mt-6'} bg-white text-black px-6 py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
+        submitting || addingToCart || !acceptedTerms ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-100 transform hover:scale-105 active:scale-95'
       }`}
     >
       {submitting
