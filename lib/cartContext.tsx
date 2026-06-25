@@ -55,6 +55,20 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 const getCartItemKey = (item: CartItem) =>
   `${item.timeSlotId || item.id}__${item.bookingDate || ""}__${item.bookingType || ""}`;
 
+const mergeCartAddons = (existingAddons: ServiceAddon[] = [], incomingAddons: ServiceAddon[] = []) => {
+  if (incomingAddons.length === 0) return existingAddons;
+
+  const incomingPhotographyAddons = incomingAddons.filter((addon) => addon.serviceType === 'photography');
+  const incomingOtherAddons = incomingAddons.filter((addon) => addon.serviceType !== 'photography');
+  const replaceTypes = new Set(incomingOtherAddons.map((addon) => addon.serviceType));
+
+  return [
+    ...existingAddons.filter((addon) => !replaceTypes.has(addon.serviceType)),
+    ...incomingPhotographyAddons,
+    ...incomingOtherAddons,
+  ];
+};
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -178,7 +192,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           serviceType: item.serviceType ?? existing.serviceType,
           serviceProviderName: item.serviceProviderName ?? existing.serviceProviderName,
           serviceProviderRate: item.serviceProviderRate ?? existing.serviceProviderRate,
-          serviceAddons: item.serviceAddons?.length ? item.serviceAddons : existing.serviceAddons,
+          serviceAddons: mergeCartAddons(existing.serviceAddons, item.serviceAddons),
           quantity: nextQuantity,
           unitPrice,
           price: `₱${(unitPrice * nextQuantity).toLocaleString()}`,

@@ -427,6 +427,8 @@ export default function SelectProfessionalPage() {
       return;
     }
 
+    const shouldReplaceServiceType = pro.service_type !== 'photography';
+
     if (hasDraftBooking && currentDraft) {
       setCheckoutDraft({
         ...currentDraft,
@@ -435,7 +437,9 @@ export default function SelectProfessionalPage() {
         serviceProviderName: providerName,
         serviceProviderRate: providerRate,
         serviceAddons: [
-          ...(currentDraft.serviceAddons || []).filter((addon) => addon.serviceType !== pro.service_type),
+          ...(currentDraft.serviceAddons || []).filter((addon) => (
+            shouldReplaceServiceType ? addon.serviceType !== pro.service_type : true
+          )),
           {
             providerId: pro.id,
             serviceType: pro.service_type,
@@ -464,7 +468,9 @@ export default function SelectProfessionalPage() {
         serviceProviderName: providerName,
         serviceProviderRate: providerRate,
         serviceAddons: [
-          ...(targetSlot.serviceAddons || []).filter((addon) => addon.serviceType !== pro.service_type),
+          ...(targetSlot.serviceAddons || []).filter((addon) => (
+            shouldReplaceServiceType ? addon.serviceType !== pro.service_type : true
+          )),
           {
             providerId: pro.id,
             serviceType: pro.service_type,

@@ -8,6 +8,7 @@ import { useToast } from '@/lib/toastContext';
 import { clearCheckoutDraft, getCheckoutDraft, getSelectedCheckoutItemIds, setCheckoutDraft } from '@/lib/checkoutDraft';
 import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
 import { PAYMENT_STORAGE_EVENT } from '@/components/GlobalPaymentMonitor';
+import { getCartItemAddonsForUnit, getPhotographyAddonPackagePricing } from '@/lib/photographyAddonPackages';
 import { paymongoService } from '@/network/services/paymongoService';
 import bundlePackageService, { BundlePackage } from '@/network/services/bundlePackageService';
 import { api } from '@/network';
@@ -157,7 +158,8 @@ export default function BookingCheckoutPage() {
     if (serviceType === 'make_up_artist_hair_extensions') return 'HMUA Request';
     return serviceType.split('_').join(' ');
   };
-  const getItemTotal = (item: CartItem) => getItemBasePrice(item) + getItemAddonsTotal(item);
+  const photographyAddonPricing = getPhotographyAddonPackagePricing(checkoutItems, getItemAddons);
+  const getItemTotal = (item: CartItem) => getItemBasePrice(item) + photographyAddonPricing.getItemAddonTotal(item);
   const getBundleSlotKey = (item: CartItem) => {
     const bookingType = item.bookingType || 'professional_slots';
     if (bookingType !== 'professional_slots') return '';
@@ -168,7 +170,7 @@ export default function BookingCheckoutPage() {
     return `${item.bookingDate}__${slotIdentifier}`;
   };
   const bookingBaseTotal = checkoutItems.reduce((sum, item) => sum + getItemBasePrice(item), 0);
-  const bookingAddonsTotal = checkoutItems.reduce((sum, item) => sum + getItemAddonsTotal(item) * getItemQuantity(item), 0);
+  const bookingAddonsTotal = photographyAddonPricing.total;
   const professionalSlotQuantity = checkoutItems.reduce((sum, item) => (
     (item.bookingType || 'professional_slots') === 'professional_slots' ? sum + getItemQuantity(item) : sum
   ), 0);
@@ -434,7 +436,7 @@ export default function BookingCheckoutPage() {
       const bookingUnitsWithSlotIds = bookingUnits.map(({ item, index }) => ({
         item,
         index,
-        selectedAddons: getItemAddons(item),
+        selectedAddons: getCartItemAddonsForUnit(item, getItemAddons(item), index),
         fallbackTimeSlotId: item.timeSlotId || extractUUID(item.id),
       }));
 
@@ -471,7 +473,7 @@ export default function BookingCheckoutPage() {
       const totalBaseDiscount = Math.round(Math.max(0, totalUnitBasePrice - discountedBaseTotal));
       let remainingDiscount = totalBaseDiscount;
 
-      const bookingPayloads = bookingUnitsWithSlotIds.map(({ item, selectedAddons, fallbackTimeSlotId }, index) => {
+      const bookingPayloads = bookingUnitsWithSlotIds.map(({ item, index: unitIndex, selectedAddons, fallbackTimeSlotId }, index) => {
         const primaryAddon = selectedAddons[0];
         const unitBasePrice = getItemUnitBasePrice(item);
         const proportionalDiscount = totalUnitBasePrice > 0
@@ -491,7 +493,7 @@ export default function BookingCheckoutPage() {
           booking_date: item.bookingDate || formatLocalDate(new Date()),
           booking_time: parseTime(item.time),
           booking_status: 'pending' as const,
-          booking_price: Math.max(0, Math.round(unitBasePrice - baseDiscountForUnit)) + Math.round(getItemAddonsTotal(item)),
+          booking_price: Math.max(0, Math.round(unitBasePrice - baseDiscountForUnit)) + Math.round(photographyAddonPricing.getUnitAddonTotal(item.id, unitIndex)),
           service_type: normalizeServiceType(primaryAddon?.serviceType || item.serviceType),
           service_provider_id: primaryAddon?.providerId ?? item.serviceProviderId ?? null,
           time_slot_id: fallbackTimeSlotId,
@@ -883,8 +885,8 @@ export default function BookingCheckoutPage() {
       <div className="text-sm text-gray-400 mt-1">
         {it.bookingDate ? new Date(it.bookingDate + 'T00:00:00').toLocaleDateString() : 'No date selected'}
       </div>
-      {getItemAddons(it).map((addon) => (
-        <div key={`${addon.serviceType}-${addon.providerId}`} className="mt-2 pt-2 border-t border-white/10 flex items-start justify-between gap-2">
+      {getItemAddons(it).map((addon, addonIndex) => (
+        <div key={`${addon.serviceType}-${addon.providerId}-${addon.durationMinutes || 'na'}-${addon.startOffsetMinutes ?? 'na'}-${addonIndex}`} className="mt-2 pt-2 border-t border-white/10 flex items-start justify-between gap-2">
           <div>
             <div className="text-xs text-gray-400">
               {getAddonServiceLabel(addon.serviceType)}
@@ -1017,9 +1019,23 @@ export default function BookingCheckoutPage() {
       {checkoutItems.some(it => getItemAddons(it).length > 0) && (
         <div className="flex justify-between text-gray-300">
           <span>Add-ons</span>
-          <span>PHP {bookingAddonsTotal.toFixed(2)}</span>
+          <span className={photographyAddonPricing.savings > 0 ? 'line-through opacity-70' : ''}>
+            PHP {photographyAddonPricing.regularTotal.toFixed(2)}
+          </span>
         </div>
       )}
+
+      {photographyAddonPricing.appliedPackages.map((pkg) => (
+        <div key={`${pkg.groupKey}-${pkg.minutes}`} className="rounded-lg border border-teal-300/30 bg-teal-300/10 p-3 text-sm text-teal-100">
+          <div className="flex justify-between gap-3 font-bold">
+            <span>{pkg.providerName} - {pkg.displayDuration}</span>
+            <span>PHP {pkg.price.toFixed(2)}</span>
+          </div>
+          <p className="mt-1 text-xs text-teal-100/80">
+            Photography package applied for {pkg.addonCount} add-ons ({pkg.displayDuration} total). You saved PHP {pkg.savings.toFixed(2)}.
+          </p>
+        </div>
+      ))}
 
       <div className="flex justify-between text-2xl font-bold text-white pt-2 border-t border-white/20">
         <span>Total</span>

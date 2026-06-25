@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Minus, Plus, X, Trash2, ShoppingBag, Camera } from 'lucide-react';
 import { useCart } from '@/lib/cartContext';
 import { setSelectedCheckoutItemIds } from '@/lib/checkoutDraft';
+import { getPhotographyAddonPackagePricing } from '@/lib/photographyAddonPackages';
 
 export default function CartDrawer() {
   const { items, removeItem, updateItemQuantity, isOpen, setIsOpen } = useCart();
@@ -18,10 +19,10 @@ export default function CartDrawer() {
   const getItemQuantity = (item: typeof items[number]) => Math.max(1, Number(item.quantity || 1));
   const getItemBaseTotal = (item: typeof items[number]) => parseFloat(item.price.replace(/[^0-9.]/g, '') || '0') || 0;
   const getItemAddons = (item: typeof items[number]) => item.serviceAddons || [];
-  const getItemAddonsTotal = (item: typeof items[number]) =>
-    getItemAddons(item).reduce((sum, addon) => sum + (addon.quoteRequired ? 0 : Number(addon.providerRate || 0)), 0) * getItemQuantity(item);
-  const getItemDisplayTotal = (item: typeof items[number]) => getItemBaseTotal(item) + getItemAddonsTotal(item);
-  const selectedTotal = selectedItems.reduce((sum, item) => sum + getItemDisplayTotal(item), 0);
+  const cartAddonPricing = getPhotographyAddonPackagePricing(items, getItemAddons);
+  const selectedAddonPricing = getPhotographyAddonPackagePricing(selectedItems, getItemAddons);
+  const getItemDisplayTotal = (item: typeof items[number]) => getItemBaseTotal(item) + cartAddonPricing.getItemAddonTotal(item);
+  const selectedTotal = selectedItems.reduce((sum, item) => sum + getItemBaseTotal(item), 0) + selectedAddonPricing.total;
   const selectedQuantity = selectedItems.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
 
   useEffect(() => {
@@ -126,9 +127,9 @@ export default function CartDrawer() {
                           {getItemAddons(item).length > 0 && (
                             <div className="mt-3 space-y-1 rounded-lg bg-slate-50 p-3">
                               <p className="text-xs font-black uppercase tracking-wide text-slate-500">Add-ons</p>
-                              {getItemAddons(item).map((addon) => (
+                              {getItemAddons(item).map((addon, addonIndex) => (
                                 <div
-                                  key={`${addon.serviceType}-${addon.providerId}-${addon.durationMinutes || 'na'}-${addon.startOffsetMinutes || 0}`}
+                                  key={`${addon.serviceType}-${addon.providerId}-${addon.durationMinutes || 'na'}-${addon.startOffsetMinutes ?? 'na'}-${addonIndex}`}
                                   className="flex items-start justify-between gap-3 text-xs text-slate-700"
                                 >
                                   <span>
@@ -201,6 +202,21 @@ export default function CartDrawer() {
               <p className="mt-2 text-xs font-medium text-gray-500">
                 {selectedQuantity} {selectedQuantity === 1 ? 'booking' : 'bookings'} selected for checkout.
               </p>
+              {selectedAddonPricing.savings > 0 && (
+                <div className="mt-3 space-y-1 rounded-lg border border-teal-100 bg-teal-50 p-3">
+                  {selectedAddonPricing.appliedPackages.map((pkg) => (
+                    <div key={`${pkg.groupKey}-${pkg.minutes}`} className="text-xs text-teal-900">
+                      <div className="flex items-center justify-between gap-3 font-black">
+                        <span>{pkg.providerName} - {pkg.displayDuration}</span>
+                        <span>₱{pkg.price.toLocaleString()}</span>
+                      </div>
+                      <p className="mt-1 font-bold text-teal-700">
+                        Package applied for {pkg.addonCount} photography add-ons. You saved ₱{pkg.savings.toLocaleString()}.
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">
