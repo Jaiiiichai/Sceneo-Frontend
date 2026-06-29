@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Camera, CheckCircle2, Clock3, Images, Loader2, ShieldCheck, Users } from 'lucide-react';
 import { useAuth } from '@/lib/authContext';
@@ -17,7 +17,7 @@ const getBookingId = (payload: unknown): string | null => {
   return record.data ? getBookingId(record.data) : null;
 };
 
-export default function PackageCheckoutPage() {
+function PackageCheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isAuthenticated } = useAuth();
@@ -150,5 +150,13 @@ export default function PackageCheckoutPage() {
         </aside>
       </div>
     </main>
+  );
+}
+
+export default function PackageCheckoutPage() {
+  return (
+    <Suspense fallback={<main className="flex min-h-[70vh] items-center justify-center bg-[#e5e7eb]"><Loader2 className="animate-spin" /></main>}>
+      <PackageCheckoutContent />
+    </Suspense>
   );
 }

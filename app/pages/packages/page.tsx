@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CalendarDays, Camera, Check, Clock3, Images, Loader2, Users } from 'lucide-react';
 import studioPackageService, { PackageAvailability, StudioPackage } from '@/network/services/studioPackageService';
@@ -11,7 +11,7 @@ const today = () => {
   return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
 };
 
-export default function StudioPackagesPage() {
+function StudioPackagesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedGroup = searchParams.get('group') || '';
@@ -153,5 +153,13 @@ export default function StudioPackagesPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function StudioPackagesPage() {
+  return (
+    <Suspense fallback={<main className="flex min-h-[70vh] items-center justify-center bg-[#e5e7eb]"><Loader2 className="animate-spin" /></main>}>
+      <StudioPackagesContent />
+    </Suspense>
   );
 }
