@@ -35,6 +35,13 @@ interface Booking {
       name: string;
     };
   };
+  packageName?: string;
+  packageDetails?: {
+    audienceName?: string;
+    accessMinutes?: number;
+    photographyMinutes?: number;
+    editedPhotos?: number;
+  } | null;
 }
 
 interface ApiBooking {
@@ -66,6 +73,10 @@ interface ApiBooking {
     duration_minutes?: number | null;
     start_offset_minutes?: number | null;
   }>;
+  studio_package_id?: number | null;
+  package_name_snapshot?: string | null;
+  package_end_time?: string | null;
+  package_details_snapshot?: Booking['packageDetails'];
 }
 
 interface ClosedDate {
@@ -294,17 +305,25 @@ const mapApiBookingToBooking = (booking: ApiBooking): Booking => ({
   customerName: booking.customer_name || booking.users?.full_name || 'Unknown Customer',
   email: booking.customer_email || booking.users?.email || 'N/A',
   phone: booking.customer_phone || 'N/A',
-  studio: booking.booking_type === 'whole_studio' || booking.booking_type === 'Whole Studio'
+  studio: booking.studio_package_id
+    ? (booking.package_name_snapshot || 'STUDIO PACKAGE').toUpperCase()
+    : booking.booking_type === 'whole_studio' || booking.booking_type === 'Whole Studio'
     ? 'WHOLE STUDIO'
     : 'STUDIO SLOT',
   date: formatDisplayDate(booking.booking_date),
-  time: formatDisplayTime(booking.booking_time),
-  duration: '60 MIN',
+  time: booking.package_end_time
+    ? `${formatDisplayTime(booking.booking_time)} - ${formatDisplayTime(booking.package_end_time)}`
+    : formatDisplayTime(booking.booking_time),
+  duration: booking.package_details_snapshot?.accessMinutes
+    ? `${booking.package_details_snapshot.accessMinutes} MIN`
+    : '60 MIN',
   price: `₱${Number(booking.booking_price || 0).toLocaleString()}`,
   status: booking.booking_status,
   services: booking.booking_addons?.length
     ? mapAddonsToServices(booking.booking_addons)
     : mapProviderToServices(booking.providers),
+  packageName: booking.package_name_snapshot || undefined,
+  packageDetails: booking.package_details_snapshot,
 });
 
 export default function AdminDashboard() {
@@ -1623,6 +1642,18 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   </div>
+
+                  {selectedBooking.packageDetails && (
+                    <div className="rounded-lg border border-teal-200 bg-teal-50 p-4">
+                      <p className="mb-2 text-sm font-semibold text-teal-800">Package Inclusions</p>
+                      <div className="grid gap-1 text-sm text-teal-950">
+                        <p><span className="font-bold">Group:</span> {selectedBooking.packageDetails.audienceName}</p>
+                        <p><span className="font-bold">Studio access:</span> {Number(selectedBooking.packageDetails.accessMinutes || 0) / 60} hour(s)</p>
+                        <p><span className="font-bold">Photography:</span> {selectedBooking.packageDetails.photographyMinutes || 0} minutes</p>
+                        <p><span className="font-bold">Edited photos:</span> {selectedBooking.packageDetails.editedPhotos || 0}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">

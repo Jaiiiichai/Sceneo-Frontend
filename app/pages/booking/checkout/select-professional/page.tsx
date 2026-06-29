@@ -292,6 +292,7 @@ export default function SelectProfessionalPage() {
       }
 
       setPendingPaymentBooking({
+        paymentType: 'addon',
         bookingId: addonBookingId,
         paymentLinkId: paymentLink.id,
         paymentLinkUrl: checkoutUrl,

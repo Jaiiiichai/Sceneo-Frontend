@@ -1,4 +1,5 @@
 export interface PendingPaymentBookingDraft {
+  paymentType?: 'booking' | 'addon' | 'package';
   invoiceId?: string;
   invoiceUrl?: string;
   paymentLinkId?: string;

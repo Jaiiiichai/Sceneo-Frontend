@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock3,
   Images,
+  Package,
   Sparkles,
   ShieldCheck,
   Users,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useBookingType } from '@/lib/bookingContext';
 import bundlePackageService, { BundlePackage } from '@/network/services/bundlePackageService';
+import studioPackageService, { StudioPackage } from '@/network/services/studioPackageService';
 
 const heroImage = 'https://images.unsplash.com/photo-1604014237800-1c9102c219da?auto=format&fit=crop&w=1800&q=80';
 
@@ -152,6 +154,14 @@ const bookingOptions = [
     action: 'Book Whole Studio',
   },
   {
+    title: 'Studio Packages',
+    description: 'Choose a Solo, Couple, Trio, Barkada, or Family bundle with studio access, photography, and edited-photo options.',
+    href: '/pages/packages',
+    type: null,
+    icon: Package,
+    action: 'View Packages',
+  },
+  {
     title: 'Add Add-ons',
     description: 'Already booked and paid? Add a photographer, editor, or make-up package to your existing booking.',
     href: '/pages/bookings',
@@ -203,6 +213,7 @@ export default function Home() {
   const { setBookingType } = useBookingType();
   const [selectedScene, setSelectedScene] = useState<(typeof galleryImages)[number] | null>(null);
   const [bundlePackages, setBundlePackages] = useState<BundlePackage[]>([]);
+  const [studioPackages, setStudioPackages] = useState<StudioPackage[]>([]);
 
   useEffect(() => {
     const loadBundlePackages = async () => {
@@ -215,7 +226,12 @@ export default function Home() {
     };
 
     void loadBundlePackages();
+    studioPackageService.list().then(setStudioPackages).catch(() => setStudioPackages([]));
   }, []);
+
+  const packageGroups = studioPackages.filter((item, index, all) => (
+    all.findIndex((candidate) => candidate.audience_key === item.audience_key) === index
+  ));
 
   return (
     <main className="overflow-x-hidden bg-[#e5e7eb] text-slate-950">
@@ -293,7 +309,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {bookingOptions.map((option) => {
               const Icon = option.icon;
               return (
@@ -317,6 +333,25 @@ export default function Home() {
               );
             })}
           </div>
+
+          {packageGroups.length > 0 && (
+            <div className="mt-5 rounded-lg border border-slate-300 bg-slate-950 p-5 text-white shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Studio Packages</p>
+                  <h3 className="mt-1 text-2xl font-black">One booking, everything arranged.</h3>
+                  <p className="mt-1 text-sm text-slate-300">Select a group, compare Bundles A-E, then choose a starting time.</p>
+                </div>
+                <Link href="/pages/packages" className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-black text-slate-950 hover:bg-teal-200">Explore packages <ArrowRight size={17} /></Link>
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                {packageGroups.map((group) => {
+                  const prices = studioPackages.filter((item) => item.audience_key === group.audience_key).map((item) => Number(item.package_price));
+                  return <Link key={group.audience_key} href={`/pages/packages?group=${group.audience_key}`} className="rounded-lg border border-white/15 bg-white/5 p-3 transition hover:bg-white/10"><p className="font-black">{group.audience_name}</p><p className="mt-1 text-xs text-slate-300">From PHP {Math.min(...prices).toLocaleString()}</p></Link>;
+                })}
+              </div>
+            </div>
+          )}
 
           {bundlePackages.length > 0 && (
             <div className="mt-5 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">

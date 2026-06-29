@@ -547,6 +547,7 @@ export default function BookingCheckoutPage() {
       }
 
       setPendingPaymentBooking({
+        paymentType: 'booking',
         bookingId: String(createdBookingIds[0]),
         bookingIds: createdBookingIds,
         paymentLinkId: paymentLink.id,

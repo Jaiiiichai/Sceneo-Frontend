@@ -25,6 +25,17 @@ type ApiBooking = {
   booking_status?: BookingStatus | string;
   booking_price?: number | string;
   created_at?: string;
+  studio_package_id?: number | null;
+  package_name_snapshot?: string | null;
+  package_end_time?: string | null;
+  package_slot_quantity?: number | null;
+  package_details_snapshot?: {
+    accessMinutes?: number;
+    photographyMinutes?: number;
+    editedPhotos?: number;
+    audienceName?: string;
+    bundleCode?: string;
+  } | null;
   providers?: {
     full_name?: string;
     service_type?: string;
@@ -50,6 +61,8 @@ type HistoryBooking = {
   priceAmount: number;
   provider?: string;
   createdAt: string;
+  isPackage: boolean;
+  packageDetails?: ApiBooking['package_details_snapshot'];
 };
 
 const formatLocalDate = (date: Date): string => {
@@ -121,7 +134,9 @@ const toHistoryBooking = (booking: ApiBooking): HistoryBooking => {
   const normalizedBookingType = booking.booking_type === 'whole_studio' || booking.booking_type === 'Whole Studio'
     ? 'whole_studio'
     : 'professional_slots';
-  const bookingType = normalizedBookingType === 'whole_studio'
+  const bookingType = booking.studio_package_id
+    ? (booking.package_name_snapshot || 'Studio Package')
+    : normalizedBookingType === 'whole_studio'
     ? 'Whole Studio'
     : 'Studio Slot';
   const priceAmount = Number(booking.booking_price || 0);
@@ -133,7 +148,9 @@ const toHistoryBooking = (booking: ApiBooking): HistoryBooking => {
     rawDate: booking.booking_date || '',
     rawTime: booking.booking_time || '',
     date: formatDate(booking.booking_date),
-    time: formatTime(booking.booking_time),
+    time: booking.package_end_time
+      ? `${formatTime(booking.booking_time)} - ${formatTime(booking.package_end_time)}`
+      : formatTime(booking.booking_time),
     status: normalizeStatus(booking.booking_status),
     price: `PHP ${priceAmount.toLocaleString()}`,
     priceAmount,
@@ -143,6 +160,8 @@ const toHistoryBooking = (booking: ApiBooking): HistoryBooking => {
           .join(', ')
       : booking.providers?.full_name,
     createdAt: booking.created_at ? formatDate(booking.created_at.split('T')[0]) : 'N/A',
+    isPackage: Boolean(booking.studio_package_id),
+    packageDetails: booking.package_details_snapshot,
   };
 };
 
@@ -464,6 +483,7 @@ export default function BookingsHistoryPage() {
       }
 
       setPendingPaymentBooking({
+        paymentType: 'booking',
         bookingId: booking.id,
         paymentLinkId: paymentLink.id,
         paymentLinkUrl: checkoutUrl,
@@ -731,7 +751,16 @@ export default function BookingsHistoryPage() {
                     <p className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
                     <span className="font-semibold">Provider:</span> {booking.provider}
                   </p>
-                )}
+                  )}
+
+                  {booking.isPackage && booking.packageDetails && (
+                    <div className="mt-4 grid gap-2 rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-950 sm:grid-cols-2">
+                      <p><span className="font-black">Guests:</span> {booking.packageDetails.audienceName}</p>
+                      <p><span className="font-black">Studio access:</span> {Number(booking.packageDetails.accessMinutes || 0) / 60} hour(s)</p>
+                      <p><span className="font-black">Photography:</span> {booking.packageDetails.photographyMinutes || 0} minutes</p>
+                      <p><span className="font-black">Edited photos:</span> {booking.packageDetails.editedPhotos || 0}</p>
+                    </div>
+                  )}
 
                 {(booking.status === 'pending' || booking.status === 'paid') && !isPastBooking(booking) && (
                   <div className="mt-5 border-t border-slate-200 pt-4">
@@ -762,14 +791,14 @@ export default function BookingsHistoryPage() {
                       )}
                       {booking.status === 'paid' && (
                         <>
-                          <button
+                          {!booking.isPackage && <button
                             type="button"
                             onClick={() => setAddonModal(booking)}
                             className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
                           >
                             <Plus className="h-4 w-4" />
                             Add Add-ons
-                          </button>
+                          </button>}
                           <button
                             type="button"
                             onClick={() => openRescheduleModal(booking)}
