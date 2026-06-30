@@ -5,6 +5,8 @@
 
 import { api, APIError } from '@/network';
 
+export const BOOKING_CUTOFF_MINUTES = 60;
+
 export type BookingType = 'whole_studio' | 'professional_slots' | 'both';
 
 export interface TimeSlot {
@@ -647,11 +649,8 @@ export function isSlotTooClose(slot: TimeSlot, selectedDate: Date): boolean {
   // Calculate time difference in milliseconds
   const timeDiff = slotTime.getTime() - now.getTime();
   
-  // Convert to hours (1 hour = 3600000 milliseconds)
-  const hoursDiff = timeDiff / (1000 * 60 * 60);
-  
-  // Disable if less than 1 hour away or already passed
-  return hoursDiff < 1;
+  // Disable at the one-hour cutoff or any time after it.
+  return timeDiff <= BOOKING_CUTOFF_MINUTES * 60 * 1000;
 }
 
 /**
