@@ -1,14 +1,16 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Camera, CheckCircle2, Clock3, Images, Loader2, ShieldCheck, Users } from 'lucide-react';
+import { Camera, CheckCircle2, Clock3, Images, Loader2, ShieldCheck, Trash2, Users } from 'lucide-react';
 import { useAuth } from '@/lib/authContext';
 import { useToast } from '@/lib/toastContext';
 import studioPackageService, { PackageAvailability, StudioPackage } from '@/network/services/studioPackageService';
 import { paymongoService } from '@/network/services/paymongoService';
 import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
 import { PAYMENT_STORAGE_EVENT } from '@/components/GlobalPaymentMonitor';
+import MakeupAddonSelector from '@/components/MakeupAddonSelector';
+import { ServiceAddon } from '@/lib/cartContext';
 
 const getBookingId = (payload: unknown): string | null => {
   if (!payload || typeof payload !== 'object') return null;
@@ -24,7 +26,8 @@ function PackageCheckoutContent() {
   const { showToast } = useToast();
   const packageId = Number(searchParams.get('packageId'));
   const bookingDate = searchParams.get('date') || '';
-  const slotIds = (searchParams.get('slotIds') || '').split(',').filter(Boolean);
+  const slotIdsKey = searchParams.get('slotIds') || '';
+  const slotIds = useMemo(() => slotIdsKey.split(',').filter(Boolean), [slotIdsKey]);
   const [studioPackage, setStudioPackage] = useState<StudioPackage | null>(null);
   const [schedule, setSchedule] = useState<PackageAvailability | null>(null);
   const [name, setName] = useState('');
@@ -33,6 +36,9 @@ function PackageCheckoutContent() {
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [makeupAddons, setMakeupAddons] = useState<ServiceAddon[]>([]);
+
+  const makeupTotal = makeupAddons.reduce((sum, addon) => sum + (addon.quoteRequired ? 0 : Number(addon.providerRate || 0)), 0);
 
   useEffect(() => {
     if (user) {
@@ -51,7 +57,7 @@ function PackageCheckoutContent() {
         setSchedule(selectedSchedule);
       })
       .finally(() => setLoading(false));
-  }, [packageId, bookingDate, searchParams]);
+  }, [packageId, bookingDate, slotIds]);
 
   const handlePayment = async () => {
     if (!studioPackage || !schedule || !name.trim() || !email.trim() || !phone.trim()) {
@@ -83,6 +89,7 @@ function PackageCheckoutContent() {
         customer_name: name.trim(),
         customer_email: email.trim(),
         customer_phone: phone.trim(),
+        addons: makeupAddons,
       });
       const bookingId = getBookingId(response);
       if (!bookingId) throw new Error('Unable to determine the package booking ID.');
@@ -91,7 +98,7 @@ function PackageCheckoutContent() {
       const link = await paymongoService.createPaymentLink({
         booking_id: bookingId,
         booking_ids: [bookingId],
-        amount: Number(studioPackage.package_price),
+        amount: Number(studioPackage.package_price) + makeupTotal,
         currency: 'PHP',
         description: `${studioPackage.name} on ${bookingDate}, ${schedule.display_time}`,
         return_url: returnUrl,
@@ -126,6 +133,10 @@ function PackageCheckoutContent() {
             <label className="text-sm font-bold text-slate-700 sm:col-span-2">Phone number<input value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 outline-none focus:border-slate-950" /></label>
           </div>
 
+          {studioPackage.makeup_available && (
+            <MakeupAddonSelector bookingDate={bookingDate} bookingTime={schedule.start_time} value={makeupAddons} onChange={setMakeupAddons} />
+          )}
+
           <div className="mt-7 rounded-lg border border-slate-200 bg-slate-50 p-5">
             <div className="flex gap-3"><ShieldCheck className="shrink-0 text-teal-700" /><div><h2 className="font-black">Booking acknowledgement</h2><p className="mt-1 text-sm leading-6 text-slate-600">Only guests covered by this confirmed package may enter the studio. Sessions start and end as scheduled. Package bookings remain subject to Sceneo Studio&apos;s rescheduling, refund, and shared-studio policies.</p></div></div>
             <label className="mt-4 flex cursor-pointer items-start gap-3 border-t border-slate-200 pt-4 text-sm font-semibold text-slate-700"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} className="mt-1 h-4 w-4" /> I have read and agree to the Terms & Policies and studio entry policy.</label>
@@ -145,7 +156,8 @@ function PackageCheckoutContent() {
             <p className="flex gap-2"><CheckCircle2 size={17} /> Access to all curated sets</p>
           </div>
           <div className="my-5 border-t border-white/15" />
-          <div className="flex items-end justify-between"><span>Total</span><span className="text-3xl font-black">PHP {Number(studioPackage.package_price).toLocaleString()}</span></div>
+          {makeupAddons.length > 0 && <div className="mb-3 flex items-center justify-between gap-3 text-sm text-slate-300"><span>Make-up add-on</span><div className="flex items-center gap-3"><span>PHP {makeupTotal.toLocaleString()}</span><button type="button" onClick={() => setMakeupAddons([])} aria-label="Remove make-up add-on" title="Remove make-up add-on" className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"><Trash2 size={16} /></button></div></div>}
+          <div className="flex items-end justify-between"><span>Total</span><span className="text-3xl font-black">PHP {(Number(studioPackage.package_price) + makeupTotal).toLocaleString()}</span></div>
           <button disabled={submitting} onClick={handlePayment} className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3.5 font-black text-slate-950 hover:bg-teal-200 disabled:opacity-50">{submitting && <Loader2 size={18} className="animate-spin" />}{submitting ? 'Preparing Payment' : 'Proceed to Payment'}</button>
         </aside>
       </div>

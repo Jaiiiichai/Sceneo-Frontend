@@ -1,4 +1,5 @@
 import { api } from '@/network';
+import { ServiceAddon } from '@/lib/cartContext';
 
 export interface StudioPackage {
   id: number;
@@ -49,6 +50,7 @@ const studioPackageService = {
     customer_name: string;
     customer_email: string;
     customer_phone: string;
+    addons?: ServiceAddon[];
   }) => api.post<ApiEnvelope<Record<string, unknown>>>('/studio-packages/book', payload, { requiresAuth: true }),
 };
 
