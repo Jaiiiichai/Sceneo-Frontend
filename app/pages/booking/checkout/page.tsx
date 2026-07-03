@@ -19,12 +19,13 @@ interface PromoValidationResponse {
   message?: string;
   data?: {
     code: string;
-    discounted_base_price: number;
+    discounted_total_price: number;
+    discounted_base_price?: number;
   };
 }
 
 export default function BookingCheckoutPage() {
-  const { items, addItem, setIsOpen,updateItem } = useCart();
+  const { items, addItem, removeItem, setIsOpen,updateItem } = useCart();
   const { user, fetchUser, isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
@@ -36,7 +37,7 @@ export default function BookingCheckoutPage() {
   const [promoCode, setPromoCode] = useState('');
   const [promoApplying, setPromoApplying] = useState(false);
   const [promoMessage, setPromoMessage] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountedBasePrice: number } | null>(null);
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountedTotalPrice: number } | null>(null);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [showStudioEntryPolicyModal, setShowStudioEntryPolicyModal] = useState(false);
   const [acceptedStudioEntryPolicy, setAcceptedStudioEntryPolicy] = useState(false);
@@ -185,8 +186,8 @@ export default function BookingCheckoutPage() {
       ))
     : undefined;
   const bundleBaseTotal = matchedBundle ? Number(matchedBundle.package_price || 0) : bookingBaseTotal;
-  const discountedBaseTotal = appliedPromo ? appliedPromo.discountedBasePrice : bundleBaseTotal;
-  const checkoutTotal = discountedBaseTotal + bookingAddonsTotal;
+  const checkoutSubtotal = bundleBaseTotal + bookingAddonsTotal;
+  const checkoutTotal = appliedPromo ? appliedPromo.discountedTotalPrice : checkoutSubtotal;
   const bundleSavings = matchedBundle ? Math.max(0, bookingBaseTotal - bundleBaseTotal) : 0;
 
   // Fetch user data on mount and auto-fill form
@@ -259,7 +260,7 @@ export default function BookingCheckoutPage() {
         promo_code: normalizedPromoCode,
         booking_type: item.bookingType || 'professional_slots',
         booking_date: item.bookingDate || formatLocalDate(new Date()),
-        booking_base_price: getItemBasePrice(item),
+        booking_total_price: bookingBaseTotal + bookingAddonsTotal,
       }, { requiresAuth: true });
 
       if (!response.success || !response.data) {
@@ -268,7 +269,7 @@ export default function BookingCheckoutPage() {
 
       setAppliedPromo({
         code: response.data.code,
-        discountedBasePrice: response.data.discounted_base_price,
+        discountedTotalPrice: response.data.discounted_total_price ?? response.data.discounted_base_price ?? 0,
       });
       setPromoCode(response.data.code);
       setPromoMessage(response.message || 'Promo code applied.');
@@ -370,9 +371,10 @@ export default function BookingCheckoutPage() {
 
     setSubmitting(true);
     setSubmissionStage('preparing');
-    const paymentWindow = typeof window !== 'undefined' ? window.open('', '_blank') : null;
+    const requiresPaymongoPayment = checkoutTotal > 0;
+    const paymentWindow = requiresPaymongoPayment && typeof window !== 'undefined' ? window.open('', '_blank') : null;
 
-    if (!paymentWindow) {
+    if (requiresPaymongoPayment && !paymentWindow) {
       showToast('Please allow pop-ups so PayMongo checkout can open in a new tab.', 'error');
       setSubmitting(false);
       setSubmissionStage('idle');
@@ -392,7 +394,7 @@ export default function BookingCheckoutPage() {
       );
 
       if (bookingUnits.some(({ item }) => getItemAddons(item).some((addon) => addon.quoteRequired && !addon.requestOnly))) {
-        paymentWindow.close();
+        paymentWindow?.close();
         showToast('This booking includes a service for quotation. Please wait for admin confirmation before payment.', 'error');
         return;
       }
@@ -470,19 +472,22 @@ export default function BookingCheckoutPage() {
       };
 
       const totalUnitBasePrice = bookingUnitsWithSlotIds.reduce((sum, { item }) => sum + getItemUnitBasePrice(item), 0);
-      const totalBaseDiscount = Math.round(Math.max(0, totalUnitBasePrice - discountedBaseTotal));
-      let remainingDiscount = totalBaseDiscount;
+      const totalBeforePromo = totalUnitBasePrice + bookingAddonsTotal;
+      const totalPromoDiscount = Math.round(Math.max(0, totalBeforePromo - checkoutTotal));
+      let remainingDiscount = totalPromoDiscount;
 
       const bookingPayloads = bookingUnitsWithSlotIds.map(({ item, index: unitIndex, selectedAddons, fallbackTimeSlotId }, index) => {
         const primaryAddon = selectedAddons[0];
         const unitBasePrice = getItemUnitBasePrice(item);
-        const proportionalDiscount = totalUnitBasePrice > 0
-          ? Math.round(totalBaseDiscount * (unitBasePrice / totalUnitBasePrice))
+        const unitAddonTotal = photographyAddonPricing.getUnitAddonTotal(item.id, unitIndex);
+        const unitTotalBeforePromo = unitBasePrice + unitAddonTotal;
+        const proportionalDiscount = totalBeforePromo > 0
+          ? Math.round(totalPromoDiscount * (unitTotalBeforePromo / totalBeforePromo))
           : 0;
-        const baseDiscountForUnit = index === bookingUnitsWithSlotIds.length - 1
+        const discountForUnit = index === bookingUnitsWithSlotIds.length - 1
           ? remainingDiscount
           : Math.min(remainingDiscount, proportionalDiscount);
-        remainingDiscount = Math.max(0, remainingDiscount - baseDiscountForUnit);
+        remainingDiscount = Math.max(0, remainingDiscount - discountForUnit);
 
         return {
           user_id: user?.id || 0,
@@ -493,7 +498,8 @@ export default function BookingCheckoutPage() {
           booking_date: item.bookingDate || formatLocalDate(new Date()),
           booking_time: parseTime(item.time),
           booking_status: 'pending' as const,
-          booking_price: Math.max(0, Math.round(unitBasePrice - baseDiscountForUnit)) + Math.round(photographyAddonPricing.getUnitAddonTotal(item.id, unitIndex)),
+          booking_price: Math.max(0, Math.round(unitTotalBeforePromo - discountForUnit)),
+          promo_original_total: appliedPromo ? Math.round(unitTotalBeforePromo) : undefined,
           service_type: normalizeServiceType(primaryAddon?.serviceType || item.serviceType),
           service_provider_id: primaryAddon?.providerId ?? item.serviceProviderId ?? null,
           time_slot_id: fallbackTimeSlotId,
@@ -516,7 +522,7 @@ export default function BookingCheckoutPage() {
         const bookingIdCandidate = getBookingIdFromResponse(createdBooking);
 
         if (!bookingIdCandidate) {
-          paymentWindow.close();
+          paymentWindow?.close();
           showToast('Unable to determine booking ID before payment. Please try again.', 'error');
           return;
         }
@@ -526,6 +532,17 @@ export default function BookingCheckoutPage() {
 
       const amount = checkoutTotal;
       const firstPayload = bookingPayloads[0];
+
+      if (!requiresPaymongoPayment) {
+        paymentWindow?.close();
+        clearCheckoutDraft();
+        setIsOpen(false);
+        await Promise.all(checkoutItems.map((cartItem) => removeItem(cartItem.id)));
+        showToast('Promo applied. Your booking is confirmed with no payment required.', 'success');
+        router.push(`/pages/bookings?payment=success&bookingId=${encodeURIComponent(String(createdBookingIds[0]))}`);
+        return;
+      }
+
       const description = createdBookingIds.length === 1
         ? `Sceneo Studio booking ${firstPayload.booking_date} ${firstPayload.booking_time}`
         : `Sceneo Studio ${createdBookingIds.length} bookings`;
@@ -541,7 +558,7 @@ export default function BookingCheckoutPage() {
 
       const checkoutUrl = paymentLink?.checkout_url || paymentLink?.attributes?.checkout_url;
       if (!checkoutUrl) {
-        paymentWindow.close();
+        paymentWindow?.close();
         showToast('Unable to open QRPH payment link. Please try again.', 'error');
         return;
       }
@@ -559,11 +576,11 @@ export default function BookingCheckoutPage() {
       clearCheckoutDraft();
       setIsOpen(false);
 
-      paymentWindow.location.href = checkoutUrl;
-      paymentWindow.focus();
+      paymentWindow!.location.href = checkoutUrl;
+      paymentWindow!.focus();
       return;
     } catch (error) {
-      paymentWindow.close();
+      paymentWindow?.close();
       const message = error instanceof Error ? error.message : 'An error occurred while creating your booking. Please try again.';
       showToast(message, 'error');
     } finally {
@@ -1005,22 +1022,22 @@ export default function BookingCheckoutPage() {
 
       {appliedPromo && (
         <div className="flex justify-between text-green-300">
-          <span>Promo Fee ({appliedPromo.code})</span>
-          <span>PHP {discountedBaseTotal.toFixed(2)}</span>
+          <span>Promo Total ({appliedPromo.code})</span>
+          <span>PHP {checkoutTotal.toFixed(2)}</span>
         </div>
       )}
 
       {appliedPromo && (
         <div className="flex justify-between text-green-300">
           <span>Promo Savings</span>
-          <span>- PHP {Math.max(0, bookingBaseTotal - discountedBaseTotal).toFixed(2)}</span>
+          <span>- PHP {Math.max(0, bookingBaseTotal + bookingAddonsTotal - checkoutTotal).toFixed(2)}</span>
         </div>
       )}
 
       {checkoutItems.some(it => getItemAddons(it).length > 0) && (
         <div className="flex justify-between text-gray-300">
           <span>Add-ons</span>
-          <span className={photographyAddonPricing.savings > 0 ? 'line-through opacity-70' : ''}>
+          <span className={appliedPromo || photographyAddonPricing.savings > 0 ? 'line-through opacity-70' : ''}>
             PHP {photographyAddonPricing.regularTotal.toFixed(2)}
           </span>
         </div>

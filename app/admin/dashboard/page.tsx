@@ -133,6 +133,17 @@ interface BundlePackage {
   sort_order: number;
 }
 
+interface SalesStatistics {
+  total_sales: number;
+  booking_sales: number;
+  addon_sales: number;
+  sales_this_month: number;
+  sales_today: number;
+  paid_bookings: number;
+  paid_addon_orders: number;
+  total_paid_transactions: number;
+}
+
 interface AdminUser {
   id?: number;
   email?: string;
@@ -393,6 +404,8 @@ export default function AdminDashboard() {
   const [bundlePackages, setBundlePackages] = useState<BundlePackage[]>([]);
   const [bundlesLoading, setBundlesLoading] = useState(false);
   const [editingBundleId, setEditingBundleId] = useState<number | null>(null);
+  const [salesStatistics, setSalesStatistics] = useState<SalesStatistics | null>(null);
+  const [salesStatisticsLoading, setSalesStatisticsLoading] = useState(false);
   const [promoForm, setPromoForm] = useState({
     code: '',
     description: '',
@@ -704,6 +717,25 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchSalesStatistics = async (token = promoAdminToken) => {
+    if (!token) return;
+
+    try {
+      setSalesStatisticsLoading(true);
+      const result = await api.get<{ success: boolean; data?: SalesStatistics }>('/admin/sales-statistics', {
+        requiresAuth: true,
+        headers: getPromoAdminHeaders(token),
+      });
+      setSalesStatistics(result.data || null);
+    } catch {
+      setPromoUnlocked(false);
+      setPromoAdminToken('');
+      showConfirmation('Owner pricing session expired. Please unlock again.', 'error');
+    } finally {
+      setSalesStatisticsLoading(false);
+    }
+  };
+
   const handlePromoUnlock = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -727,7 +759,7 @@ export default function AdminDashboard() {
       setPromoUnlocked(true);
       setPromoUnlockPassword('');
       showConfirmation('Pricing manager unlocked.', 'success');
-      await Promise.all([fetchPromoCodes(token), fetchBundlePackages(token)]);
+      await Promise.all([fetchPromoCodes(token), fetchBundlePackages(token), fetchSalesStatistics(token)]);
     } catch {
       showConfirmation('Invalid owner password.', 'error');
     } finally {
@@ -2693,6 +2725,47 @@ export default function AdminDashboard() {
                     </div>
                   </form>
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">Owner Sales</p>
+                    <h2 className="text-2xl font-black text-slate-950">Sales Statistics</h2>
+                    <p className="text-sm text-slate-600">Confirmed booking revenue and separately paid add-on purchases.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchSalesStatistics()}
+                    disabled={salesStatisticsLoading}
+                    className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 disabled:opacity-60"
+                  >
+                    {salesStatisticsLoading ? 'Refreshing...' : 'Refresh Sales'}
+                  </button>
+                </div>
+
+                {salesStatisticsLoading && !salesStatistics ? (
+                  <p className="text-sm font-semibold text-slate-600">Loading sales statistics...</p>
+                ) : salesStatistics ? (
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="rounded-lg bg-slate-950 p-5 text-white sm:col-span-2 xl:col-span-1">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-teal-300">Total Sales</p>
+                      <p className="mt-2 text-3xl font-black">PHP {Number(salesStatistics.total_sales || 0).toLocaleString()}</p>
+                      <p className="mt-2 text-xs text-slate-400">All confirmed booking and add-on revenue</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">This Month</p>
+                      <p className="mt-2 text-2xl font-black text-slate-950">PHP {Number(salesStatistics.sales_this_month || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white p-5">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Paid Transactions</p>
+                      <p className="mt-2 text-xl font-black text-slate-950">{salesStatistics.total_paid_transactions}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">Bookings and add-on payments combined</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm font-semibold text-slate-600">Sales statistics are unavailable right now.</p>
+                )}
               </div>
               </>
             )}
