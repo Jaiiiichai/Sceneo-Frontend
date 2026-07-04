@@ -51,6 +51,7 @@ const studioPackageService = {
     customer_email: string;
     customer_phone: string;
     addons?: ServiceAddon[];
+    promo_code?: string;
   }) => api.post<ApiEnvelope<Record<string, unknown>>>('/studio-packages/book', payload, { requiresAuth: true }),
 };
 

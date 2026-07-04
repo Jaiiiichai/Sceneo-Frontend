@@ -2431,9 +2431,9 @@ export default function AdminDashboard() {
                           onChange={(event) => setPromoForm(prev => ({ ...prev, discount_type: event.target.value }))}
                           className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold focus:border-slate-950 focus:bg-white focus:outline-none"
                         >
-                          <option value="fixed_price">Fixed price</option>
-                          <option value="amount_off">Amount off</option>
-                          <option value="percent_off">Percent off</option>
+                          <option value="fixed_price">Set final price</option>
+                          <option value="amount_off">Subtract amount</option>
+                          <option value="percent_off">Percentage discount</option>
                         </select>
                       </div>
                       <div>

@@ -11,6 +11,17 @@ import { setPendingPaymentBooking } from '@/lib/pendingPaymentBooking';
 import { PAYMENT_STORAGE_EVENT } from '@/components/GlobalPaymentMonitor';
 import MakeupAddonSelector from '@/components/MakeupAddonSelector';
 import { ServiceAddon } from '@/lib/cartContext';
+import { api } from '@/network';
+
+interface PromoValidationResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    code: string;
+    discounted_total_price: number;
+    discounted_base_price?: number;
+  };
+}
 
 const getBookingId = (payload: unknown): string | null => {
   if (!payload || typeof payload !== 'object') return null;
@@ -37,8 +48,68 @@ function PackageCheckoutContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [makeupAddons, setMakeupAddons] = useState<ServiceAddon[]>([]);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoApplying, setPromoApplying] = useState(false);
+  const [promoMessage, setPromoMessage] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountedTotalPrice: number } | null>(null);
 
   const makeupTotal = makeupAddons.reduce((sum, addon) => sum + (addon.quoteRequired ? 0 : Number(addon.providerRate || 0)), 0);
+  const checkoutSubtotal = Number(studioPackage?.package_price || 0) + makeupTotal;
+  const checkoutTotal = appliedPromo ? appliedPromo.discountedTotalPrice : checkoutSubtotal;
+
+  const handleMakeupAddonsChange = (addons: ServiceAddon[]) => {
+    setMakeupAddons(addons);
+    if (appliedPromo) {
+      setAppliedPromo(null);
+      setPromoMessage('Add-ons changed. Apply the promo code again to recalculate the total.');
+    }
+  };
+
+  const handlePromoCodeChange = (value: string) => {
+    setPromoCode(value.toUpperCase());
+    setAppliedPromo(null);
+    setPromoMessage('');
+  };
+
+  const handleApplyPromoCode = async () => {
+    const normalizedCode = promoCode.trim();
+    if (!normalizedCode || !studioPackage) {
+      setPromoMessage('Enter a promo code.');
+      return;
+    }
+    if (!isAuthenticated()) {
+      const next = `/pages/packages/checkout?${searchParams.toString()}`;
+      router.push(`/pages/Auth/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
+
+    setPromoApplying(true);
+    setPromoMessage('');
+    try {
+      const response = await api.post<PromoValidationResponse>('/bookings/promo/validate', {
+        promo_code: normalizedCode,
+        booking_type: 'professional_slots',
+        booking_date: bookingDate,
+        booking_total_price: checkoutSubtotal,
+      }, { requiresAuth: true });
+      if (!response.success || !response.data) throw new Error(response.message || 'Promo code could not be applied.');
+
+      setAppliedPromo({
+        code: response.data.code,
+        discountedTotalPrice: response.data.discounted_total_price ?? response.data.discounted_base_price ?? 0,
+      });
+      setPromoCode(response.data.code);
+      setPromoMessage(response.message || 'Promo code applied.');
+      showToast('Promo code applied.', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Promo code could not be applied.';
+      setAppliedPromo(null);
+      setPromoMessage(message);
+      showToast(message, 'error');
+    } finally {
+      setPromoApplying(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -74,8 +145,9 @@ function PackageCheckoutContent() {
       return;
     }
 
-    const paymentWindow = window.open('', '_blank');
-    if (!paymentWindow) {
+    const requiresPaymongoPayment = checkoutTotal > 0;
+    const paymentWindow = requiresPaymongoPayment ? window.open('', '_blank') : null;
+    if (requiresPaymongoPayment && !paymentWindow) {
       showToast('Please allow pop-ups so PayMongo can open in a new tab.', 'error');
       return;
     }
@@ -90,15 +162,22 @@ function PackageCheckoutContent() {
         customer_email: email.trim(),
         customer_phone: phone.trim(),
         addons: makeupAddons,
+        promo_code: appliedPromo?.code,
       });
       const bookingId = getBookingId(response);
       if (!bookingId) throw new Error('Unable to determine the package booking ID.');
+
+      if (!requiresPaymongoPayment) {
+        showToast('Promo applied. Your package booking is confirmed with no payment required.', 'success');
+        router.push(`/pages/bookings?payment=success&bookingId=${encodeURIComponent(bookingId)}`);
+        return;
+      }
 
       const returnUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(bookingId)}`;
       const link = await paymongoService.createPaymentLink({
         booking_id: bookingId,
         booking_ids: [bookingId],
-        amount: Number(studioPackage.package_price) + makeupTotal,
+        amount: checkoutTotal,
         currency: 'PHP',
         description: `${studioPackage.name} on ${bookingDate}, ${schedule.display_time}`,
         return_url: returnUrl,
@@ -108,10 +187,10 @@ function PackageCheckoutContent() {
 
       setPendingPaymentBooking({ paymentType: 'package', bookingId, bookingIds: [bookingId], paymentLinkId: link.id, paymentLinkUrl: checkoutUrl, createdAt: new Date().toISOString() });
       window.dispatchEvent(new Event(PAYMENT_STORAGE_EVENT));
-      paymentWindow.location.href = checkoutUrl;
-      paymentWindow.focus();
+      paymentWindow!.location.href = checkoutUrl;
+      paymentWindow!.focus();
     } catch (error) {
-      paymentWindow.close();
+      paymentWindow?.close();
       showToast(error instanceof Error ? error.message : 'Unable to create the package booking.', 'error');
     } finally {
       setSubmitting(false);
@@ -134,7 +213,7 @@ function PackageCheckoutContent() {
           </div>
 
           {studioPackage.makeup_available && (
-            <MakeupAddonSelector bookingDate={bookingDate} bookingTime={schedule.start_time} value={makeupAddons} onChange={setMakeupAddons} />
+            <MakeupAddonSelector bookingDate={bookingDate} bookingTime={schedule.start_time} value={makeupAddons} onChange={handleMakeupAddonsChange} />
           )}
 
           <div className="mt-7 rounded-lg border border-slate-200 bg-slate-50 p-5">
@@ -156,8 +235,18 @@ function PackageCheckoutContent() {
             <p className="flex gap-2"><CheckCircle2 size={17} /> Access to all curated sets</p>
           </div>
           <div className="my-5 border-t border-white/15" />
-          {makeupAddons.length > 0 && <div className="mb-3 flex items-center justify-between gap-3 text-sm text-slate-300"><span>Make-up add-on</span><div className="flex items-center gap-3"><span>PHP {makeupTotal.toLocaleString()}</span><button type="button" onClick={() => setMakeupAddons([])} aria-label="Remove make-up add-on" title="Remove make-up add-on" className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"><Trash2 size={16} /></button></div></div>}
-          <div className="flex items-end justify-between"><span>Total</span><span className="text-3xl font-black">PHP {(Number(studioPackage.package_price) + makeupTotal).toLocaleString()}</span></div>
+          <div className="mb-5 rounded-lg border border-white/15 bg-white/5 p-4">
+            <label className="mb-2 block text-sm font-bold text-white">Promo Code</label>
+            <div className="flex gap-2">
+              <input type="text" value={promoCode} onChange={(event) => handlePromoCodeChange(event.target.value)} placeholder="Enter code" disabled={promoApplying || submitting} className="min-w-0 flex-1 rounded-lg bg-white px-3 py-2 text-sm font-bold uppercase text-slate-950 outline-none" />
+              <button type="button" onClick={handleApplyPromoCode} disabled={promoApplying || submitting || !promoCode.trim()} className="rounded-lg bg-white px-4 py-2 text-sm font-black text-slate-950 disabled:opacity-60">{promoApplying ? 'Checking...' : appliedPromo ? 'Applied' : 'Apply'}</button>
+            </div>
+            {promoMessage && <p className={`mt-2 text-xs font-semibold ${appliedPromo ? 'text-green-300' : 'text-amber-200'}`}>{promoMessage}</p>}
+          </div>
+          <div className="mb-3 flex justify-between text-sm text-slate-300"><span>Package</span><span className={appliedPromo ? 'line-through opacity-60' : ''}>PHP {Number(studioPackage.package_price).toLocaleString()}</span></div>
+          {makeupAddons.length > 0 && <div className="mb-3 flex items-center justify-between gap-3 text-sm text-slate-300"><span>Make-up add-on</span><div className="flex items-center gap-3"><span className={appliedPromo ? 'line-through opacity-60' : ''}>PHP {makeupTotal.toLocaleString()}</span><button type="button" onClick={() => handleMakeupAddonsChange([])} aria-label="Remove make-up add-on" title="Remove make-up add-on" className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"><Trash2 size={16} /></button></div></div>}
+          {appliedPromo && <div className="mb-3 flex justify-between text-sm font-bold text-green-300"><span>Promo savings ({appliedPromo.code})</span><span>- PHP {Math.max(0, checkoutSubtotal - checkoutTotal).toLocaleString()}</span></div>}
+          <div className="flex items-end justify-between border-t border-white/15 pt-4"><span>Total</span><span className="text-3xl font-black">PHP {checkoutTotal.toLocaleString()}</span></div>
           <button disabled={submitting} onClick={handlePayment} className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3.5 font-black text-slate-950 hover:bg-teal-200 disabled:opacity-50">{submitting && <Loader2 size={18} className="animate-spin" />}{submitting ? 'Preparing Payment' : 'Proceed to Payment'}</button>
         </aside>
       </div>
