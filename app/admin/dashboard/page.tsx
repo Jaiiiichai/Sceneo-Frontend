@@ -10,6 +10,7 @@ type BookingStatus = 'pending' | 'confirmed' | 'paid' | 'completed' | 'cancelled
 interface Booking {
   id: string;
   rawDate: string;
+  bookedAt: string;
   customerName: string;
   email: string;
   phone: string;
@@ -166,6 +167,21 @@ const formatDisplayTime = (timeValue: string): string => {
   return `${hours}:${minutes} ${period}`;
 };
 
+const formatBookingCreatedAt = (value: string): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown';
+  }
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
 const mapProviderToServices = (provider?: { full_name?: string; service_type?: string }) => {
   const services: Booking['services'] = {};
   if (!provider?.full_name || !provider?.service_type) {
@@ -313,6 +329,7 @@ const formatPromoWindow = (value?: string | null) => {
 const mapApiBookingToBooking = (booking: ApiBooking): Booking => ({
   id: String(booking.id),
   rawDate: booking.booking_date,
+  bookedAt: formatBookingCreatedAt(booking.created_at),
   customerName: booking.customer_name || booking.users?.full_name || 'Unknown Customer',
   email: booking.customer_email || booking.users?.email || 'N/A',
   phone: booking.customer_phone || 'N/A',
@@ -1513,7 +1530,10 @@ export default function AdminDashboard() {
                       <span>•</span>
                       <span>{booking.time}</span>
                     </div>
-                    
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      Booked on: {booking.bookedAt}
+                    </p>
+
                     {/* Services Icons */}
                     {(booking.services.photographer?.enabled || booking.services.editor?.enabled || booking.services.makeupArtist?.enabled) && (
                       <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-gray-200">
@@ -1575,6 +1595,10 @@ export default function AdminDashboard() {
                     <p className="font-bold text-gray-900">{selectedBooking.customerName}</p>
                     <p className="text-sm text-gray-600">{selectedBooking.email}</p>
                     <p className="text-sm text-gray-600">{selectedBooking.phone}</p>
+                    <div className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Booked on</p>
+                      <p className="text-sm font-bold text-slate-900">{selectedBooking.bookedAt}</p>
+                    </div>
                   </div>
 
                   <div className="rounded-lg border border-slate-200 p-4">

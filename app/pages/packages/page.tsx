@@ -11,6 +11,12 @@ const today = () => {
   return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
 };
 
+const getCompanionPolicy = (audienceKey: string) => {
+  if (audienceKey === 'solo') return '1 companion allowed; additional companions need their own slot';
+  if (audienceKey === 'couple') return '1 extra companion allowed; additional companions need their own slot';
+  return 'No extra companions; companions need their own slot';
+};
+
 function StudioPackagesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,12 +45,20 @@ function StudioPackagesContent() {
 
   useEffect(() => {
     if (!selectedPackage || !bookingDate) return;
-    setSlotsLoading(true);
-    setSelectedTime(null);
-    studioPackageService.availability(selectedPackage.id, bookingDate)
-      .then(setAvailability)
-      .catch(() => setAvailability([]))
-      .finally(() => setSlotsLoading(false));
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setSlotsLoading(true);
+      setSelectedTime(null);
+      studioPackageService.availability(selectedPackage.id, bookingDate)
+        .then((slots) => { if (active) setAvailability(slots); })
+        .catch(() => { if (active) setAvailability([]); })
+        .finally(() => { if (active) setSlotsLoading(false); });
+    }, 0);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [selectedPackage, bookingDate]);
 
   const audiences = useMemo(() => {
@@ -109,9 +123,10 @@ function StudioPackagesContent() {
                       <p className="mt-3 text-3xl font-black">PHP {Number(item.package_price).toLocaleString()}</p>
                       <div className={`mt-5 space-y-3 border-t pt-4 text-sm ${selected ? 'border-white/15 text-slate-200' : 'border-slate-200 text-slate-600'}`}>
                         <p className="flex gap-2"><Clock3 size={17} className="shrink-0" /> {item.access_minutes / 60} {item.access_minutes === 60 ? 'hour' : 'hours'} studio access</p>
-                        {item.photography_minutes > 0 && <p className="flex gap-2"><Camera size={17} className="shrink-0" /> {item.photography_minutes} mins photography</p>}
+                        {item.photography_minutes > 0 && <p className="flex gap-2"><Camera size={17} className="shrink-0" /> {item.photography_minutes} mins with in-house pro photographer</p>}
                         {item.edited_photos > 0 && <p className="flex gap-2"><Images size={17} className="shrink-0" /> {item.edited_photos} edited photos</p>}
-                        <p className="flex gap-2"><Users size={17} className="shrink-0" /> Access to all curated sets</p>
+                        <p className="flex gap-2"><Users size={17} className="shrink-0" /> {getCompanionPolicy(item.audience_key)}</p>
+                        <p className="flex gap-2"><Check size={17} className="shrink-0" /> Access to all curated sets</p>
                       </div>
                     </button>
                   );

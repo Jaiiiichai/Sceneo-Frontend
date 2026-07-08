@@ -30,6 +30,12 @@ const getBookingId = (payload: unknown): string | null => {
   return record.data ? getBookingId(record.data) : null;
 };
 
+const getCompanionPolicy = (audienceKey: string) => {
+  if (audienceKey === 'solo') return '1 companion allowed; additional companions need their own slot';
+  if (audienceKey === 'couple') return '1 extra companion allowed; additional companions need their own slot';
+  return 'No extra companions; companions need their own slot';
+};
+
 function PackageCheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -230,8 +236,9 @@ function PackageCheckoutContent() {
           <div className="space-y-3 text-sm text-slate-300">
             <p className="flex gap-2"><Users size={17} /> {studioPackage.slot_quantity} {studioPackage.slot_quantity === 1 ? 'guest' : 'guests'}</p>
             <p className="flex gap-2"><Clock3 size={17} /> {studioPackage.access_minutes / 60} {studioPackage.access_minutes === 60 ? 'hour' : 'hours'} studio access</p>
-            {studioPackage.photography_minutes > 0 && <p className="flex gap-2"><Camera size={17} /> {studioPackage.photography_minutes} mins photography</p>}
+            {studioPackage.photography_minutes > 0 && <p className="flex gap-2"><Camera size={17} /> {studioPackage.photography_minutes} mins with in-house pro photographer</p>}
             {studioPackage.edited_photos > 0 && <p className="flex gap-2"><Images size={17} /> {studioPackage.edited_photos} edited photos</p>}
+            <p className="flex gap-2"><Users size={17} /> {getCompanionPolicy(studioPackage.audience_key)}</p>
             <p className="flex gap-2"><CheckCircle2 size={17} /> Access to all curated sets</p>
           </div>
           <div className="my-5 border-t border-white/15" />
