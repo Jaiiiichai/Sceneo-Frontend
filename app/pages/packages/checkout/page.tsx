@@ -175,11 +175,11 @@ function PackageCheckoutContent() {
 
       if (!requiresPaymongoPayment) {
         showToast('Promo applied. Your package booking is confirmed with no payment required.', 'success');
-        router.push(`/pages/bookings?payment=success&bookingId=${encodeURIComponent(bookingId)}`);
+        router.push(`/pages/payment-success?bookingId=${encodeURIComponent(bookingId)}`);
         return;
       }
 
-      const returnUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(bookingId)}`;
+      const returnUrl = `${window.location.origin}/pages/payment-success?bookingId=${encodeURIComponent(bookingId)}`;
       const link = await paymongoService.createPaymentLink({
         booking_id: bookingId,
         booking_ids: [bookingId],

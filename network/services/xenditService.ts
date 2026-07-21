@@ -60,7 +60,7 @@ export const xenditService = {
     for (const endpoint of createEndpoints) {
       try {
         // Add redirect URLs to the payload
-        const successUrl = `${window.location.origin}/payment-success?bookingId=${normalizedBookingId}`;
+        const successUrl = `${window.location.origin}/pages/payment-success?bookingId=${normalizedBookingId}`;
         const failureUrl = `${window.location.origin}/payment-failure?bookingId=${normalizedBookingId}`;
         const response = await api.post<ApiEnvelope<XenditInvoice> | XenditInvoice>(
           endpoint,

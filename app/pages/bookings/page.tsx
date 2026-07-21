@@ -178,7 +178,6 @@ export default function BookingsHistoryPage() {
   const [cancelModal, setCancelModal] = useState<HistoryBooking | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [trackedPaymentInvoiceId, setTrackedPaymentInvoiceId] = useState<string | null>(null);
-  const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState(false);
   const [paymentPolling, setPaymentPolling] = useState(false);
   const [payingBookingId, setPayingBookingId] = useState<string | null>(null);
   const [policyPaymentBooking, setPolicyPaymentBooking] = useState<HistoryBooking | null>(null);
@@ -346,13 +345,18 @@ export default function BookingsHistoryPage() {
 
         if (isPaid) {
           if (!cancelled) {
+            const pendingDraft = getPendingPaymentBooking();
+            const bookingId = pendingDraft?.bookingId || pendingDraft?.bookingIds?.[0];
             clearPendingPaymentBooking();
             await clearCart();
             await loadBookings(true);
-            setShowPaymentSuccessModal(true);
             setTrackedPaymentInvoiceId(null);
             setPaymentPolling(false);
-            router.replace('/pages/bookings');
+            router.replace(
+              bookingId
+                ? `/pages/payment-success?bookingId=${encodeURIComponent(String(bookingId))}`
+                : '/pages/payment-success'
+            );
           }
           return;
         }
@@ -466,7 +470,7 @@ export default function BookingsHistoryPage() {
 
     try {
       setPayingBookingId(booking.id);
-      const successUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(booking.id)}`;
+      const successUrl = `${window.location.origin}/pages/payment-success?bookingId=${encodeURIComponent(booking.id)}`;
       const paymentLink = await paymongoService.createPaymentLink({
         booking_id: booking.id,
         amount: booking.priceAmount,
@@ -997,24 +1001,6 @@ export default function BookingsHistoryPage() {
                   {rescheduling ? 'Rescheduling...' : 'Confirm Reschedule'}
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {showPaymentSuccessModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-            <div className="bg-white rounded-xl p-6 border border-slate-200 max-w-md w-full mx-4">
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Payment Successful</h3>
-              <p className="text-slate-600 mb-6">
-                Your booking is done and payment was received successfully.
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowPaymentSuccessModal(false)}
-                className="w-full px-4 py-3 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800"
-              >
-                Great
-              </button>
             </div>
           </div>
         )}

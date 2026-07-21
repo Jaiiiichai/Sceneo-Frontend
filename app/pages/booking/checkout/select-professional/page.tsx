@@ -274,7 +274,7 @@ export default function SelectProfessionalPage() {
     }
 
     try {
-      const successUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(addonBookingId)}`;
+      const successUrl = `${window.location.origin}/pages/payment-success?bookingId=${encodeURIComponent(addonBookingId)}`;
       const paymentLink = await paymongoService.createAddonPaymentLink({
         booking_id: addonBookingId,
         amount,

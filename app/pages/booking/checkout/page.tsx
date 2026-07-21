@@ -539,14 +539,14 @@ export default function BookingCheckoutPage() {
         setIsOpen(false);
         await Promise.all(checkoutItems.map((cartItem) => removeItem(cartItem.id)));
         showToast('Promo applied. Your booking is confirmed with no payment required.', 'success');
-        router.push(`/pages/bookings?payment=success&bookingId=${encodeURIComponent(String(createdBookingIds[0]))}`);
+        router.push(`/pages/payment-success?bookingId=${encodeURIComponent(String(createdBookingIds[0]))}`);
         return;
       }
 
       const description = createdBookingIds.length === 1
         ? `Sceneo Studio booking ${firstPayload.booking_date} ${firstPayload.booking_time}`
         : `Sceneo Studio ${createdBookingIds.length} bookings`;
-      const successUrl = `${window.location.origin}/pages/bookings?payment=success&bookingId=${encodeURIComponent(String(createdBookingIds[0]))}`;
+      const successUrl = `${window.location.origin}/pages/payment-success?bookingId=${encodeURIComponent(String(createdBookingIds[0]))}`;
       const paymentLink = await paymongoService.createPaymentLink({
         booking_id: createdBookingIds[0],
         booking_ids: createdBookingIds,

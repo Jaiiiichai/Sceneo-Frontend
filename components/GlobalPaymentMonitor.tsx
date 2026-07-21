@@ -18,7 +18,6 @@ export default function GlobalPaymentMonitor() {
   const { showToast } = useToast();
   const [trackedPaymongoLinkId, setTrackedPaymongoLinkId] = useState<string | null>(null);
   const [trackedPackageBookingIds, setTrackedPackageBookingIds] = useState<string[]>([]);
-  const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState(false);
 
   useEffect(() => {
     const loadPendingPayment = () => {
@@ -57,6 +56,7 @@ export default function GlobalPaymentMonitor() {
 
     const confirmSuccessfulPayment = async (status: "paid" | "addon_paid") => {
       const pendingDraft = getPendingPaymentBooking();
+      const bookingId = pendingDraft?.bookingId || pendingDraft?.bookingIds?.[0];
       clearPendingPaymentBooking();
       const cartItemIds = pendingDraft?.cartItemIds?.length
         ? pendingDraft.cartItemIds
@@ -70,12 +70,16 @@ export default function GlobalPaymentMonitor() {
 
       setTrackedPaymongoLinkId(null);
       setTrackedPackageBookingIds([]);
-      setShowPaymentSuccessModal(true);
       showToast(
         status === "addon_paid"
           ? "Payment confirmed. Your add-ons were added."
           : "Payment confirmed. Your booking is paid.",
         "success"
+      );
+      router.push(
+        bookingId
+          ? `/pages/payment-success?bookingId=${encodeURIComponent(String(bookingId))}`
+          : "/pages/payment-success"
       );
     };
 
@@ -136,30 +140,7 @@ export default function GlobalPaymentMonitor() {
     };
   }, [isAuthenticated, removeItem, showToast, trackedPaymongoLinkId, trackedPackageBookingIds]);
 
-  if (!showPaymentSuccessModal) {
-    return null;
-  }
-
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/30 backdrop-blur-sm">
-      <div className="bg-white rounded-xl p-6 border border-slate-200 max-w-md w-full mx-4 shadow-2xl">
-        <h3 className="text-2xl font-bold text-slate-950 mb-3">Payment Successful</h3>
-        <p className="text-slate-700 text-lg leading-relaxed mb-8">
-          Your payment was received successfully.
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            setShowPaymentSuccessModal(false);
-            router.push("/");
-          }}
-          className="w-full px-4 py-4 rounded-lg bg-slate-950 text-white text-lg font-bold hover:bg-slate-800"
-        >
-          Great
-        </button>
-      </div>
-    </div>
-  );
+  return null;
 }
 
 export { PAYMENT_STORAGE_EVENT };
