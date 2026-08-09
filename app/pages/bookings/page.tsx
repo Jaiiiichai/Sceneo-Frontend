@@ -138,7 +138,7 @@ const toHistoryBooking = (booking: ApiBooking): HistoryBooking => {
     ? (booking.package_name_snapshot || 'Studio Package')
     : normalizedBookingType === 'whole_studio'
     ? 'Whole Studio'
-    : 'Studio Slot';
+    : 'Self-Shoot for Two';
   const priceAmount = Number(booking.booking_price || 0);
 
   return {

@@ -44,7 +44,7 @@ export default function BookingPage() {
                 <div className="flex items-center gap-3">
                   <CalendarCheck size={22} />
                   <div>
-                    <p className="font-black">Book a Slot</p>
+                    <p className="font-black">Self-Shoot for Two</p>
                     <p className={`text-sm ${bookingType === 'slot' ? 'text-slate-600' : 'text-white/65'}`}>Scheduled session for focused shoots.</p>
                   </div>
                 </div>

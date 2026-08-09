@@ -79,7 +79,7 @@ export default function NavBar() {
                                 Studio Preview
                             </Link>
                             <Link href="/pages/booking?bookingType=slot" className="rounded-lg px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-950">
-                                Book a Slot
+                                Self-Shoot for Two
                             </Link>
                             <Link href="/pages/booking?bookingType=whole_studio" className="rounded-lg px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-950">
                                 Whole Studio
@@ -184,7 +184,7 @@ export default function NavBar() {
                                 onClick={() => setOpen(false)}
                                 className="rounded-lg px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
                             >
-                                Book a Slot
+                                Self-Shoot for Two
                             </Link>
                             <Link
                                 href="/pages/packages"

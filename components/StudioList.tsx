@@ -73,7 +73,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
             id: slot.id,
             time: slot.startTime,
             endTime: slot.endTime,
-            name: bookingType === 'whole_studio' ? 'STUDIO RENTAL' : `PROFESSIONAL SESSION`,
+            name: bookingType === 'whole_studio' ? 'STUDIO RENTAL' : 'SELF-SHOOT FOR TWO',
             subDetails: [slot.description],
             duration: '60 MIN',
             price: slot.priceDisplay,
@@ -163,6 +163,11 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
           <div className="flex flex-col sm:hidden space-y-3">
             <div className="flex justify-between items-start">
               <div>
+                {bookingType === 'slot' && (
+                  <span className="mb-2 inline-flex rounded-full bg-teal-100 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-teal-800">
+                    Self-Shoot for Two
+                  </span>
+                )}
                 <p className="text-lg font-black text-slate-950">{studio.time}</p>
                 <p className="text-sm text-slate-600">{studio.duration}</p>
                 <p className="font-bold text-slate-950">{studio.price}</p>
@@ -238,6 +243,15 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
             <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white">
               {bookingType === 'whole_studio' ? <Building2 size={22} /> : <Camera size={22} />}
             </div>
+
+            {bookingType === 'slot' && (
+              <div className="w-40 flex-shrink-0">
+                <span className="inline-flex rounded-full bg-teal-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-teal-800">
+                  Self-Shoot for Two
+                </span>
+                <p className="mt-1 text-xs font-semibold text-slate-500">PHP 999 · Up to 2 people</p>
+              </div>
+            )}
 
             {/* Time */}
             <div className="w-24 flex-shrink-0">

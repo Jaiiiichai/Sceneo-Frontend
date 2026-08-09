@@ -111,7 +111,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       id: `cart-item-${item.id}`,
       serverItemId: item.id,
       time: displayTime,
-      name: bookingType === 'whole_studio' ? 'STUDIO RENTAL' : 'PROFESSIONAL SESSION',
+      name: bookingType === 'whole_studio' ? 'STUDIO RENTAL' : 'SELF-SHOOT FOR TWO',
       duration: '60 MIN',
       price: `₱${Number(priceNumber || 0).toLocaleString()}`,
       quantity,
