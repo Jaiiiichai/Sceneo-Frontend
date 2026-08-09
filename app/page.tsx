@@ -138,7 +138,7 @@ const galleryImages = sceneFolders.map((scene) => {
 
 const bookingOptions = [
   {
-    title: 'Self-Shoot for Two',
+    title: 'Self-Shoot for 2 Pax',
     description: 'PHP 999 per studio slot, good for up to 2 people. Enjoy access to our curated studio sets during your selected session.',
     href: '/pages/booking?bookingType=slot',
     type: 'slot' as const,
@@ -472,7 +472,7 @@ export default function Home() {
               onClick={() => setBookingType('slot')}
               className="rounded-lg bg-white px-6 py-3 font-bold text-slate-950 transition hover:bg-slate-100"
             >
-              Self-Shoot for Two
+              Self-Shoot for 2 Pax
             </Link>
             <Link
               href="/pages/booking?bookingType=whole_studio"

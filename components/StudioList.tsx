@@ -73,7 +73,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
             id: slot.id,
             time: slot.startTime,
             endTime: slot.endTime,
-            name: bookingType === 'whole_studio' ? 'STUDIO RENTAL' : 'SELF-SHOOT FOR TWO',
+            name: bookingType === 'whole_studio' ? 'STUDIO RENTAL' : 'SELF-SHOOT FOR 2 PAX',
             subDetails: [slot.description],
             duration: '60 MIN',
             price: slot.priceDisplay,
@@ -161,18 +161,20 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
         >
           {/* Mobile Layout */}
           <div className="flex flex-col sm:hidden space-y-3">
-            <div className="flex justify-between items-start">
+            {bookingType === 'slot' && (
               <div>
-                {bookingType === 'slot' && (
-                  <span className="mb-2 inline-flex rounded-full bg-teal-100 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-teal-800">
-                    Self-Shoot for Two
-                  </span>
-                )}
+                <span className="inline-flex whitespace-nowrap rounded-full bg-teal-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-teal-800">
+                  Self-Shoot for 2 Pax
+                </span>
+              </div>
+            )}
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
                 <p className="text-lg font-black text-slate-950">{studio.time}</p>
                 <p className="text-sm text-slate-600">{studio.duration}</p>
                 <p className="font-bold text-slate-950">{studio.price}</p>
               </div>
-              <p className={`text-xs font-semibold ${getStatusColor(studio.status)}`}>
+              <p className={`shrink-0 pt-1 text-right text-xs font-semibold ${getStatusColor(studio.status)}`}>
                 {getStatusText(studio.status)}
               </p>
             </div>
@@ -247,7 +249,7 @@ export default function StudioList({ selectedDate, bookingType }: StudioListProp
             {bookingType === 'slot' && (
               <div className="w-40 flex-shrink-0">
                 <span className="inline-flex rounded-full bg-teal-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-teal-800">
-                  Self-Shoot for Two
+                  Self-Shoot for 2 Pax
                 </span>
                 <p className="mt-1 text-xs font-semibold text-slate-500">PHP 999 · Up to 2 people</p>
               </div>

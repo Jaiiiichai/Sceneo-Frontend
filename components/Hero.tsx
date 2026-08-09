@@ -57,7 +57,7 @@ export default function Hero({ setBookingType }: HeroProps) {
                                 <div className="w-16 h-16 bg-indigo-900 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                                     <CalendarCheck className="w-8 h-8 text-white" />
                                 </div>
-                                <h3 className="text-xl font-bold text-slate-900 mb-2">Self-Shoot for Two</h3>
+                                <h3 className="text-xl font-bold text-slate-900 mb-2">Self-Shoot for 2 Pax</h3>
                                 <p className="text-slate-700 text-sm mb-4">
                                     Perfect for individual shoots. Choose your time slot and studio.
                                 </p>
