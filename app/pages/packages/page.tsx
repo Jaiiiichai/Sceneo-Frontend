@@ -71,6 +71,18 @@ function StudioPackagesContent() {
   }, [packages]);
 
   const visiblePackages = packages.filter((item) => item.audience_key === audience);
+  const packageSections = audience === 'solo' || audience === 'couple'
+    ? [
+        {
+          label: audience === 'couple' ? 'Couple / Bestfriend Bundles' : 'Solo Bundles',
+          items: visiblePackages.filter((item) => !item.makeup_available),
+        },
+        {
+          label: audience === 'couple' ? 'Couple Make-up Bundles' : 'Solo Make-up Bundles',
+          items: visiblePackages.filter((item) => item.makeup_available),
+        },
+      ].filter((section) => section.items.length > 0)
+    : [{ label: '', items: visiblePackages }];
 
   const chooseAudience = (key: string) => {
     setAudience(key);
@@ -113,25 +125,37 @@ function StudioPackagesContent() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {visiblePackages.map((item) => {
-                  const selected = selectedPackage?.id === item.id;
-                  return (
-                    <button key={item.id} type="button" onClick={() => setSelectedPackage(item)} className={`relative min-h-64 rounded-lg border p-5 text-left shadow-sm transition ${selected ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-300 bg-white hover:-translate-y-0.5 hover:border-slate-600'}`}>
-                      {selected && <Check className="absolute right-4 top-4" size={20} />}
-                      <p className={`text-xs font-black uppercase tracking-[0.18em] ${selected ? 'text-amber-300' : 'text-teal-700'}`}>Bundle {item.bundle_code}</p>
-                      <p className="mt-3 text-3xl font-black">PHP {Number(item.package_price).toLocaleString()}</p>
-                      <div className={`mt-5 space-y-3 border-t pt-4 text-sm ${selected ? 'border-white/15 text-slate-200' : 'border-slate-200 text-slate-600'}`}>
-                        <p className="flex gap-2"><Clock3 size={17} className="shrink-0" /> {item.access_minutes / 60} {item.access_minutes === 60 ? 'hour' : 'hours'} studio access</p>
-                        {item.photography_minutes > 0 && <p className="flex gap-2"><Camera size={17} className="shrink-0" /> {item.photography_minutes} mins with in-house pro photographer</p>}
-                        {item.edited_photos > 0 && <p className="flex gap-2"><Images size={17} className="shrink-0" /> {item.edited_photos} edited photos</p>}
-                        <p className="flex gap-2"><Users size={17} className="shrink-0" /> {getCompanionPolicy(item.audience_key)}</p>
-                        <p className="flex gap-2"><Check size={17} className="shrink-0" /> Access to all curated sets</p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              {packageSections.map((section) => (
+                <div key={section.label || audience}>
+                  {section.label && (
+                    <div className="mb-3 flex items-center gap-3">
+                      <h3 className="text-lg font-black text-slate-950">{section.label}</h3>
+                      <div className="h-px flex-1 bg-slate-300" />
+                    </div>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {section.items.map((item) => {
+                      const selected = selectedPackage?.id === item.id;
+                      return (
+                        <button key={item.id} type="button" onClick={() => setSelectedPackage(item)} className={`relative min-h-64 rounded-lg border p-5 text-left shadow-sm transition ${selected ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-300 bg-white hover:-translate-y-0.5 hover:border-slate-600'}`}>
+                          {selected && <Check className="absolute right-4 top-4" size={20} />}
+                          <p className={`text-xs font-black uppercase tracking-[0.18em] ${selected ? 'text-amber-300' : 'text-teal-700'}`}>{item.makeup_available ? `${item.audience_key === 'couple' ? 'Couple' : 'Solo'} Make-up Bundle ${item.bundle_code === 'C' ? 'A' : 'B'}` : `Bundle ${item.bundle_code}`}</p>
+                          <p className="mt-3 text-3xl font-black">PHP {Number(item.package_price).toLocaleString()}</p>
+                          <div className={`mt-5 space-y-3 border-t pt-4 text-sm ${selected ? 'border-white/15 text-slate-200' : 'border-slate-200 text-slate-600'}`}>
+                            <p className="flex gap-2"><Clock3 size={17} className="shrink-0" /> {item.access_minutes / 60} {item.access_minutes === 60 ? 'hour' : 'hours'} studio access</p>
+                            <p className="flex gap-2"><Camera size={17} className="shrink-0" /> {item.photography_minutes > 0 ? `${item.photography_minutes} mins with in-house pro photographer` : 'No in-house photographer included'}</p>
+                            <p className="flex gap-2"><Images size={17} className="shrink-0" /> {item.edited_photos > 0 ? `${item.edited_photos} edited photos` : 'No edited photos included'}</p>
+                            {item.makeup_available && <p className="flex gap-2"><Check size={17} className="shrink-0" /> Soft glam or full glam make-up with hairstyling{item.audience_key === 'couple' ? ' for male and female' : ''}</p>}
+                            <p className="flex gap-2"><Check size={17} className="shrink-0" /> Unlimited self-photography during your booking time</p>
+                            <p className="flex gap-2"><Users size={17} className="shrink-0" /> {getCompanionPolicy(item.audience_key)}</p>
+                            <p className="flex gap-2"><Check size={17} className="shrink-0" /> Access to all curated sets</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
 
               <div className="rounded-lg border border-slate-300 bg-white p-5 shadow-sm">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">Step 2</p>

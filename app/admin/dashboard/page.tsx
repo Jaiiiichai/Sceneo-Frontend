@@ -26,6 +26,7 @@ interface Booking {
       name: string;
       durationMinutes?: number;
       startOffsetMinutes?: number | null;
+      included?: boolean;
     };
     editor?: {
       enabled: boolean;
@@ -39,9 +40,12 @@ interface Booking {
   packageName?: string;
   packageDetails?: {
     audienceName?: string;
+    audienceKey?: string;
+    slotQuantity?: number;
     accessMinutes?: number;
     photographyMinutes?: number;
     editedPhotos?: number;
+    makeupAvailable?: boolean;
   } | null;
 }
 
@@ -78,6 +82,14 @@ interface ApiBooking {
   package_name_snapshot?: string | null;
   package_end_time?: string | null;
   package_details_snapshot?: Booking['packageDetails'];
+  package_photography_reservations?: {
+    duration_minutes?: number | null;
+    start_time?: string | null;
+    providers?: {
+      full_name?: string;
+      service_type?: string;
+    } | null;
+  } | null;
 }
 
 interface ClosedDate {
@@ -262,6 +274,34 @@ const formatServiceTypeLabel = (serviceType?: string) => {
   }
 };
 
+const mergeBookingServices = (...sources: Booking['services'][]): Booking['services'] =>
+  sources.reduce<Booking['services']>((merged, services) => ({
+    ...merged,
+    ...services,
+  }), {});
+
+const mapPackagePhotographyToServices = (
+  reservation?: ApiBooking['package_photography_reservations']
+): Booking['services'] => {
+  if (!reservation?.providers?.full_name) return {};
+
+  return {
+    photographer: {
+      enabled: true,
+      name: reservation.providers.full_name,
+      durationMinutes: reservation.duration_minutes || undefined,
+      startOffsetMinutes: 0,
+      included: true,
+    },
+  };
+};
+
+const getPackageCompanionPolicy = (audienceKey?: string) => {
+  if (audienceKey === 'solo') return '1 companion allowed only; additional companions need their own slot';
+  if (audienceKey === 'couple') return '1 extra companion allowed only; additional companions need their own slot';
+  return 'No extra companions; each companion needs their own slot';
+};
+
 const formatBookingStatusLabel = (status: BookingStatus) =>
   status.split('_').join(' ').toUpperCase();
 
@@ -347,9 +387,11 @@ const mapApiBookingToBooking = (booking: ApiBooking): Booking => ({
     : '60 MIN',
   price: `₱${Number(booking.booking_price || 0).toLocaleString()}`,
   status: booking.booking_status,
-  services: booking.booking_addons?.length
-    ? mapAddonsToServices(booking.booking_addons)
-    : mapProviderToServices(booking.providers),
+  services: mergeBookingServices(
+    mapProviderToServices(booking.providers),
+    mapPackagePhotographyToServices(booking.package_photography_reservations),
+    mapAddonsToServices(booking.booking_addons)
+  ),
   packageName: booking.package_name_snapshot || undefined,
   packageDetails: booking.package_details_snapshot,
 });
@@ -1618,14 +1660,14 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="rounded-lg border border-slate-200 p-4">
-                    <p className="text-sm font-semibold text-gray-600 mb-2">Add-on Services</p>
+                    <p className="text-sm font-semibold text-gray-600 mb-2">Included &amp; Add-on Services</p>
                     {selectedBooking.services.photographer?.enabled || selectedBooking.services.editor?.enabled || selectedBooking.services.makeupArtist?.enabled ? (
                       <div className="space-y-3">
                         {selectedBooking.services.photographer?.enabled && (
                           <div className="flex items-start gap-3">
                             <Camera size={18} className="text-gray-600 mt-0.5" />
                             <div>
-                              <p className="font-bold text-gray-900">Photographer</p>
+                              <p className="font-bold text-gray-900">{selectedBooking.services.photographer.included ? 'Included Photographer' : 'Photographer'}</p>
                               <p className="text-sm text-gray-600">{selectedBooking.services.photographer.name}</p>
                               {selectedBooking.services.photographer.durationMinutes && (
                                 <p className="text-xs font-semibold text-gray-500">
@@ -1651,7 +1693,7 @@ export default function AdminDashboard() {
                           <div className="flex items-start gap-3">
                             <Palette size={18} className="text-gray-600 mt-0.5" />
                             <div>
-                              <p className="font-bold text-gray-900">Make-up Artist</p>
+                              <p className="font-bold text-gray-900">{selectedBooking.packageDetails?.makeupAvailable ? 'Included Make-up Artist' : 'Make-up Artist'}</p>
                               <p className="text-sm text-gray-600">{selectedBooking.services.makeupArtist.name}</p>
                             </div>
                           </div>
@@ -1704,9 +1746,12 @@ export default function AdminDashboard() {
                       <p className="mb-2 text-sm font-semibold text-teal-800">Package Inclusions</p>
                       <div className="grid gap-1 text-sm text-teal-950">
                         <p><span className="font-bold">Group:</span> {selectedBooking.packageDetails.audienceName}</p>
+                        <p><span className="font-bold">Reserved slots:</span> {selectedBooking.packageDetails.slotQuantity || 0}</p>
                         <p><span className="font-bold">Studio access:</span> {Number(selectedBooking.packageDetails.accessMinutes || 0) / 60} hour(s)</p>
                         <p><span className="font-bold">Photography:</span> {selectedBooking.packageDetails.photographyMinutes || 0} minutes</p>
                         <p><span className="font-bold">Edited photos:</span> {selectedBooking.packageDetails.editedPhotos || 0}</p>
+                        <p><span className="font-bold">Make-up &amp; hairstyling:</span> {selectedBooking.packageDetails.makeupAvailable ? 'Included' : 'Not included'}</p>
+                        <p><span className="font-bold">Companion policy:</span> {getPackageCompanionPolicy(selectedBooking.packageDetails.audienceKey)}</p>
                       </div>
                     </div>
                   )}

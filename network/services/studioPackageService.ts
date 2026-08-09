@@ -5,7 +5,7 @@ export interface StudioPackage {
   id: number;
   audience_key: string;
   audience_name: string;
-  bundle_code: 'A' | 'B' | 'C' | 'D' | 'E';
+  bundle_code: string;
   name: string;
   slot_quantity: number;
   access_minutes: number;
@@ -24,6 +24,8 @@ export interface PackageAvailability {
   end_time: string;
   display_time: string;
   remaining: number;
+  makeup_provider_id?: number | null;
+  makeup_provider_name?: string | null;
 }
 
 interface ApiEnvelope<T> {

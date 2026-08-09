@@ -132,16 +132,8 @@ export default function BookingCheckoutPage() {
     : [];
 
   const getItemAddons = (item: CartItem): ServiceAddon[] => {
-    if (item.serviceAddons?.length) return item.serviceAddons;
-    if (!item.serviceProviderId || !item.serviceType || !item.serviceProviderName) return [];
-    return [{
-      providerId: item.serviceProviderId,
-      serviceType: item.serviceType,
-      providerName: item.serviceProviderName,
-      providerRate: item.serviceProviderRate ?? 0,
-      durationMinutes: item.serviceAddons?.[0]?.durationMinutes,
-      startOffsetMinutes: item.serviceAddons?.[0]?.startOffsetMinutes,
-    }];
+    void item;
+    return [];
   };
 
   const getItemQuantity = (item: CartItem) => Math.max(1, Number(item.quantity || 1));
@@ -808,8 +800,8 @@ export default function BookingCheckoutPage() {
               </form>
             </div>
 
-            {/* Add-on Services Card */}
-            <div className="bg-white rounded-lg p-6 sm:p-8 border border-slate-200 shadow-sm">
+            {/* Add-ons are intentionally unavailable for new bookings. */}
+            <div className="hidden" aria-hidden="true">
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-100 text-amber-900">
                   <Camera size={22} />
