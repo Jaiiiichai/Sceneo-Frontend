@@ -17,7 +17,6 @@ import {
   X,
 } from 'lucide-react';
 import { useBookingType } from '@/lib/bookingContext';
-import bundlePackageService, { BundlePackage } from '@/network/services/bundlePackageService';
 import studioPackageService, { StudioPackage } from '@/network/services/studioPackageService';
 
 const heroImage = 'https://images.unsplash.com/photo-1604014237800-1c9102c219da?auto=format&fit=crop&w=1800&q=80';
@@ -212,20 +211,9 @@ const heroGalleryColumns = [
 export default function Home() {
   const { setBookingType } = useBookingType();
   const [selectedScene, setSelectedScene] = useState<(typeof galleryImages)[number] | null>(null);
-  const [bundlePackages, setBundlePackages] = useState<BundlePackage[]>([]);
   const [studioPackages, setStudioPackages] = useState<StudioPackage[]>([]);
 
   useEffect(() => {
-    const loadBundlePackages = async () => {
-      try {
-        const bundles = await bundlePackageService.listActive();
-        setBundlePackages(bundles.filter((bundle) => bundle.booking_type === 'professional_slots'));
-      } catch {
-        setBundlePackages([]);
-      }
-    };
-
-    void loadBundlePackages();
     studioPackageService.list().then(setStudioPackages).catch(() => setStudioPackages([]));
   }, []);
 
@@ -353,32 +341,6 @@ export default function Home() {
             </div>
           )}
 
-          {bundlePackages.length > 0 && (
-            <div className="mt-5 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
-              <div className="grid gap-0 lg:grid-cols-[0.95fr_1.35fr]">
-                <div className="border-b border-slate-200 bg-slate-950 p-5 text-white lg:border-b-0 lg:border-r lg:border-slate-800">
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-teal-300">Bundle Packages</p>
-                  <h3 className="mt-2 text-2xl font-black leading-tight">Same slot, better price.</h3>
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-white/70">
-                    Package prices apply only when multiple studio slot bookings use the same date and time.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-px bg-slate-200 sm:grid-cols-3 lg:grid-cols-5">
-                  {bundlePackages.map((bundle) => (
-                    <div key={bundle.id} className="bg-slate-50 p-4 transition hover:bg-white">
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-teal-700">
-                        {bundle.booking_quantity} slots
-                      </p>
-                      <p className="mt-2 text-xl font-black leading-none text-slate-950">
-                        PHP {Number(bundle.package_price || 0).toLocaleString()}
-                      </p>
-                      <p className="mt-2 truncate text-xs font-bold text-slate-500">{bundle.name}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </section>
 
